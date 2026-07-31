@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+  Dizayn tokenlari — docs/04-UI-UX.md § 2 dan.
+  Tailwind v4 @theme orqali utility klasslarga (bg-brand-600, text-danger va h.k.)
+  aylantiriladi.
+*/
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Manrope', system-ui, sans-serif;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #0ea5e9;
+
+  --color-bg-subtle: #fafafb;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-mute: #6b7280;
+
+  --color-subj-language: #4f46e5;
+  --color-subj-math: #0891b2;
+  --color-subj-science: #059669;
+  --color-subj-humanity: #b45309;
+  --color-subj-it: #7c3aed;
+
+  --radius-card: 12px;
+  --radius-modal: 16px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+}
+
+#root {
+  min-height: 100svh;
+}
