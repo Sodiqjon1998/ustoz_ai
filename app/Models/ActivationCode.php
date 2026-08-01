@@ -24,6 +24,11 @@ class ActivationCode extends Model
         return $this->belongsTo(Plan::class);
     }
 
+    public function usedBy()
+    {
+        return $this->belongsTo(User::class, 'used_by_user_id');
+    }
+
     public function isUsable(): bool
     {
         return $this->status === 'unused'

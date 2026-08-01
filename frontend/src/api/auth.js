@@ -15,3 +15,16 @@ export async function me() {
   const { data } = await client.get('/auth/me')
   return data.data
 }
+
+export async function activate(code) {
+  const { data } = await client.post('/auth/activate', { code })
+  return data.data
+}
+
+export async function firstChangePassword(password, passwordConfirmation) {
+  const { data } = await client.post('/auth/password/first-change', {
+    password,
+    password_confirmation: passwordConfirmation,
+  })
+  return data.data
+}

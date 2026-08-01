@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth, resolveAuthRoute } from '../../hooks/useAuth'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       const user = await login(phone, password)
-      navigate(user.role === 'teacher' ? '/' : '/admin')
+      navigate(resolveAuthRoute(user))
     } catch {
       setError('Telefon raqami yoki parol noto\'g\'ri.')
     } finally {

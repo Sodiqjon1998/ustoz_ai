@@ -11,7 +11,6 @@ use App\Models\Subject;
 use App\Services\Ai\GeminiService;
 use App\Services\Cache\TopicNormalizer;
 use App\Services\Generator\DocxOutlineBuilder;
-use App\Services\Generator\ExtrasBuilder;
 use App\Services\Generator\GeneratorClient;
 use App\Services\Generator\HandoutBuilder;
 use App\Services\Generator\PresentationBuilder;
@@ -26,7 +25,7 @@ class LessonController extends Controller
     public function index(Request $request)
     {
         $lessons = $request->user()->lessons()
-            ->with(['subject:id,name_uz,icon,color', 'materialSet.materials:id,material_set_id,type'])
+            ->with(['subject:id,name_uz,icon,color', 'materialSet.materials:id,material_set_id,type,file_size'])
             ->latest()
             ->limit(20)
             ->get([
@@ -47,7 +46,6 @@ class LessonController extends Controller
         HandoutBuilder $handoutBuilder,
         TestSimpleBuilder $testSimpleBuilder,
         TestQuarterBuilder $testQuarterBuilder,
-        ExtrasBuilder $extrasBuilder,
         GeneratorClient $generatorClient,
     ) {
         $data = $request->validate([
@@ -146,7 +144,8 @@ class LessonController extends Controller
                     $data['topic'],
                     $subject->name_uz,
                     $subject->theme_key,
-                    $content['lecture_html'],
+                    $data['grade'],
+                    $content,
                 );
 
                 $render = $generatorClient->renderPptx($presentation);
@@ -155,7 +154,7 @@ class LessonController extends Controller
                     'material_set_id' => $materialSet->id,
                     'type' => 'pptx',
                     'disk' => 'local',
-                    'path' => 'generated/'.$render['relative_path'],
+                    'path' => 'generated/'.str_replace('\\', '/', $render['relative_path']),
                     'file_size' => $render['file_size'],
                 ]);
             } catch (\Throwable $e) {
@@ -170,8 +169,7 @@ class LessonController extends Controller
                     $subject->name_uz,
                     $data['grade'],
                     $data['duration'],
-                    $content['objective'],
-                    $content['lecture_html'],
+                    $content,
                 );
 
                 $render = $generatorClient->renderDocx($outline);
@@ -180,7 +178,7 @@ class LessonController extends Controller
                     'material_set_id' => $materialSet->id,
                     'type' => 'docx',
                     'disk' => 'local',
-                    'path' => 'generated/'.$render['relative_path'],
+                    'path' => 'generated/'.str_replace('\\', '/', $render['relative_path']),
                     'file_size' => $render['file_size'],
                 ]);
             } catch (\Throwable $e) {
@@ -191,10 +189,10 @@ class LessonController extends Controller
                 $handout = $handoutBuilder->build(
                     $data['topic'],
                     $subject->name_uz,
+                    $subject->theme_key,
                     $data['grade'],
                     $data['duration'],
-                    $content['objective'],
-                    $content['lecture_html'],
+                    $content,
                 );
 
                 $render = $generatorClient->renderPdfHandout($handout);
@@ -203,7 +201,7 @@ class LessonController extends Controller
                     'material_set_id' => $materialSet->id,
                     'type' => 'pdf_handout',
                     'disk' => 'local',
-                    'path' => 'generated/'.$render['relative_path'],
+                    'path' => 'generated/'.str_replace('\\', '/', $render['relative_path']),
                     'file_size' => $render['file_size'],
                 ]);
             } catch (\Throwable $e) {
@@ -215,7 +213,6 @@ class LessonController extends Controller
                     $data['topic'],
                     $subject->name_uz,
                     $data['grade'],
-                    $data['duration'],
                     $content['test_questions'],
                 );
 
@@ -225,7 +222,7 @@ class LessonController extends Controller
                     'material_set_id' => $materialSet->id,
                     'type' => 'pdf_test_simple',
                     'disk' => 'local',
-                    'path' => 'generated/'.$render['relative_path'],
+                    'path' => 'generated/'.str_replace('\\', '/', $render['relative_path']),
                     'file_size' => $render['file_size'],
                 ]);
             } catch (\Throwable $e) {
@@ -237,7 +234,6 @@ class LessonController extends Controller
                     $data['topic'],
                     $subject->name_uz,
                     $data['grade'],
-                    $data['duration'],
                     $content['test_questions'],
                 );
 
@@ -247,32 +243,11 @@ class LessonController extends Controller
                     'material_set_id' => $materialSet->id,
                     'type' => 'pdf_test_quarter',
                     'disk' => 'local',
-                    'path' => 'generated/'.$render['relative_path'],
+                    'path' => 'generated/'.str_replace('\\', '/', $render['relative_path']),
                     'file_size' => $render['file_size'],
                 ]);
             } catch (\Throwable $e) {
                 Log::warning('PDF chorak testi generatsiyasi muvaffaqiyatsiz: '.$e->getMessage());
-            }
-
-            try {
-                $extras = $extrasBuilder->build(
-                    $data['topic'],
-                    $subject->name_uz,
-                    $content['objective'],
-                    $content['lecture_html'],
-                );
-
-                $render = $generatorClient->renderPdfExtras($extras);
-
-                Material::create([
-                    'material_set_id' => $materialSet->id,
-                    'type' => 'pdf_extras',
-                    'disk' => 'local',
-                    'path' => 'generated/'.$render['relative_path'],
-                    'file_size' => $render['file_size'],
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('PDF qo\'shimcha material generatsiyasi muvaffaqiyatsiz: '.$e->getMessage());
             }
 
             $job->update([
@@ -308,7 +283,6 @@ class LessonController extends Controller
         'pdf_handout' => 'pdf',
         'pdf_test_simple' => 'pdf',
         'pdf_test_quarter' => 'pdf',
-        'pdf_extras' => 'pdf',
     ];
 
     public function download(Request $request, Lesson $lesson, string $type)

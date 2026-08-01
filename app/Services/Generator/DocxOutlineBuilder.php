@@ -5,79 +5,45 @@ namespace App\Services\Generator;
 class DocxOutlineBuilder
 {
     /**
-     * lecture_html'ni (h2 bo'limlarga bo'lingan) DOCX uchun tartiblangan
-     * struktura'ga aylantiradi — PresentationBuilder'dan farqli o'laroq
-     * matn qisqartirilmaydi va paragraf/ro'yxat tartibi saqlanadi.
+     * GeminiService::generateLessonContent() natijasini DOCX generatoriga
+     * mo'ljallangan "konspekt" strukturasiga aylantiradi — sarlavha bloki,
+     * metama'lumot jadvali va "DARS BORISHI" bosqichlar jadvali.
      *
-     * @return array{title: string, subjectName: string, grade: int, duration: int, objective: string, sections: array}
+     * @return array{
+     *     title: string, subjectName: string, grade: int, duration: int,
+     *     lessonType: string, objectiveMain: string,
+     *     objectives: array{educational: string, developmental: string, upbringing: string},
+     *     equipment: string[],
+     *     phases: array<int, array{name: string, durationMin: int, blocks: array}>,
+     *     homework: string,
+     * }
      */
-    public function build(
-        string $topic,
-        string $subjectName,
-        int $grade,
-        int $duration,
-        string $objective,
-        string $lectureHtml,
-    ): array {
+    public function build(string $topic, string $subjectName, int $grade, int $duration, array $content): array
+    {
+        $objectives = (array) ($content['objectives'] ?? []);
+
         return [
             'title' => $topic,
             'subjectName' => $subjectName,
             'grade' => $grade,
             'duration' => $duration,
-            'objective' => $objective,
-            'sections' => $this->splitSections($lectureHtml),
+            'lessonType' => (string) ($content['lesson_type'] ?? ''),
+            'objectiveMain' => (string) ($content['objective_main'] ?? ''),
+            'objectives' => [
+                'educational' => (string) ($objectives['educational'] ?? ''),
+                'developmental' => (string) ($objectives['developmental'] ?? ''),
+                'upbringing' => (string) ($objectives['upbringing'] ?? ''),
+            ],
+            'equipment' => array_values(array_filter((array) ($content['equipment'] ?? []))),
+            'phases' => array_map(
+                fn (array $phase) => [
+                    'name' => (string) ($phase['name'] ?? ''),
+                    'durationMin' => (int) ($phase['duration_min'] ?? 0),
+                    'blocks' => HtmlBlockParser::toBlocks((string) ($phase['content_html'] ?? '')),
+                ],
+                (array) ($content['phases'] ?? []),
+            ),
+            'homework' => (string) ($content['homework'] ?? ''),
         ];
-    }
-
-    /**
-     * @return array<int, array{heading: string, blocks: array}>
-     */
-    private function splitSections(string $html): array
-    {
-        $parts = preg_split('/<h2[^>]*>(.*?)<\/h2>/is', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
-
-        if (count($parts) < 2) {
-            return [];
-        }
-
-        $sections = [];
-        for ($i = 1; $i < count($parts); $i += 2) {
-            $heading = trim(strip_tags($parts[$i]));
-            $body = $parts[$i + 1] ?? '';
-            $blocks = $this->extractBlocks($body);
-
-            if ($heading !== '' && count($blocks) > 0) {
-                $sections[] = ['heading' => $heading, 'blocks' => $blocks];
-            }
-        }
-
-        return $sections;
-    }
-
-    /**
-     * Bo'lim ichidagi <p> va <li> elementlarini paydo bo'lish tartibida,
-     * to'liq matn bilan ajratib oladi.
-     *
-     * @return array<int, array{type: string, text: string}>
-     */
-    private function extractBlocks(string $html): array
-    {
-        $blocks = [];
-
-        preg_match_all('/<(p|li)[^>]*>(.*?)<\/\1>/is', $html, $matches, PREG_SET_ORDER);
-
-        foreach ($matches as $match) {
-            $text = trim(strip_tags($match[2]));
-            if ($text === '') {
-                continue;
-            }
-
-            $blocks[] = [
-                'type' => $match[1] === 'li' ? 'bullet' : 'paragraph',
-                'text' => $text,
-            ];
-        }
-
-        return $blocks;
     }
 }

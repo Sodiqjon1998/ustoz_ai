@@ -3,16 +3,21 @@ import cors from 'cors'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { buildPptx } from './pptx/build.js'
 import { buildDocx } from './docx/build.js'
 import { buildHandoutPdf } from './pdf/handout.js'
 import { buildTestSimplePdf } from './pdf/test-simple.js'
 import { buildTestQuarterPdf } from './pdf/test-quarter.js'
-import { buildExtrasPdf } from './pdf/extras.js'
 
 const app = express()
 const PORT = process.env.GENERATOR_PORT ?? 4000
-const OUTPUT_DIR = process.env.GENERATOR_OUTPUT_DIR ?? path.resolve('storage', 'generated')
+// Laravel bu fayllarni "local" diskdan o'qiydi, shuning uchun yo'l generator
+// qaysi papkadan ishga tushirilganiga bog'liq bo'lmasligi kerak.
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const OUTPUT_DIR =
+  process.env.GENERATOR_OUTPUT_DIR ??
+  path.join(PROJECT_ROOT, 'storage', 'app', 'private', 'generated')
 
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
@@ -56,8 +61,8 @@ app.post('/render/docx', async (req, res) => {
   try {
     const outline = req.body
 
-    if (!outline?.sections?.length) {
-      return res.status(422).json({ error: '"sections" massivi bo\'sh yoki yo\'q.' })
+    if (!outline?.phases?.length) {
+      return res.status(422).json({ error: '"phases" massivi bo\'sh yoki yo\'q.' })
     }
 
     const buffer = await buildDocx(outline)
@@ -88,8 +93,8 @@ app.post('/render/pdf/test-simple', async (req, res) => {
   try {
     const input = req.body
 
-    if (!input?.questions?.length) {
-      return res.status(422).json({ error: '"questions" massivi bo\'sh yoki yo\'q.' })
+    if (!input?.tier1?.length && !input?.tier2?.length) {
+      return res.status(422).json({ error: '"tier1"/"tier2" massivlari bo\'sh yoki yo\'q.' })
     }
 
     const buffer = await buildTestSimplePdf(input)
@@ -104,30 +109,14 @@ app.post('/render/pdf/test-quarter', async (req, res) => {
   try {
     const input = req.body
 
-    if (!input?.questions?.length) {
-      return res.status(422).json({ error: '"questions" massivi bo\'sh yoki yo\'q.' })
+    if (!input?.tier1?.length && !input?.tier2?.length) {
+      return res.status(422).json({ error: '"tier1"/"tier2" massivlari bo\'sh yoki yo\'q.' })
     }
 
     const buffer = await buildTestQuarterPdf(input)
     res.json(await saveOutput('pdf_test_quarter', 'pdf', buffer))
   } catch (err) {
     console.error('[render/pdf/test-quarter]', err)
-    res.status(500).json({ error: err.message })
-  }
-})
-
-app.post('/render/pdf/extras', async (req, res) => {
-  try {
-    const input = req.body
-
-    if (!input?.title) {
-      return res.status(422).json({ error: '"title" maydoni yo\'q.' })
-    }
-
-    const buffer = await buildExtrasPdf(input)
-    res.json(await saveOutput('pdf_extras', 'pdf', buffer))
-  } catch (err) {
-    console.error('[render/pdf/extras]', err)
     res.status(500).json({ error: err.message })
   }
 })

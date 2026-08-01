@@ -38,6 +38,10 @@ return [
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
+        // Asosiy modelning bepul kvotasi kunlik va juda tor (~20 so'rov).
+        // U tugaganda zaxira model ishlatiladi — uning kvotasi alohida
+        // hisoblanadi, sifati biroz pastroq, lekin dars generatsiyasi to'xtamaydi.
+        'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-flash-lite-latest'),
     ],
 
     'generator' => [

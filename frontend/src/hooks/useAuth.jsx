@@ -31,8 +31,14 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  async function refreshUser() {
+    const fresh = await authApi.me()
+    setUser(fresh)
+    return fresh
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
@@ -44,4 +50,16 @@ export function useAuth() {
     throw new Error('useAuth must be used within AuthProvider')
   }
   return ctx
+}
+
+// Login va Dashboard ikkalasida ham ishlatiladi: hisobning navbatdagi
+// majburiy bosqichi bormi (parol, faollashtirish) yoki asosiy sahifaga
+// o'tsa bo'ladimi — shu yerda bir joyda hal qilinadi.
+export function resolveAuthRoute(user) {
+  if (!user) return '/login'
+  if (user.must_change_password) return '/parol-ornatish'
+  if (user.role === 'teacher' && (user.status !== 'active' || !user.subscription)) {
+    return '/faollashtirish'
+  }
+  return user.role === 'teacher' ? '/' : '/admin'
 }

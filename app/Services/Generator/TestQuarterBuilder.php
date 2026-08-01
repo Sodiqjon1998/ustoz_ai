@@ -4,39 +4,41 @@ namespace App\Services\Generator;
 
 class TestQuarterBuilder
 {
-    // HALOLLIK ESLATMASI: "Chorak nazorat ishi" odatda mustaqil ~30 ta
-    // savoldan iborat bo'lishi kerak, lekin GeminiService (app/Services/Ai/
-    // GeminiService.php) hozircha har bir mavzu uchun faqat 20 ta test savoli
-    // generatsiya qiladi — xuddi shu savol banki pdf_test_simple bilan ham
-    // bo'lishiladi. Bu yerda soxta qo'shimcha savollar to'qib chiqarilmaydi;
-    // mavjud 20 ta savol "chorak nazorat ishi" formatida chop etiladi.
-    // Kelajakda GeminiService'ga alohida, kattaroq chorak savol banki
-    // generatsiya qilish funksiyasi qo'shilishi kerak — bu ishning
-    // doirasidan tashqarida.
+    public function __construct(private TestTierSplitter $splitter)
+    {
+    }
 
     /**
-     * @param  array  $testQuestions  MaterialSet::content['test_questions'] (haqiqatda 20 ta)
-     * @return array{title: string, subjectName: string, grade: int, duration: int, questions: array}
+     * "Chorak nazorat ishi" — GeminiService'dan kelgan TO'LIQ savol banki
+     * (~28-30 ta) ishlatiladi: barcha "oson"+"orta" savollar 1 ballik
+     * "Asosiy savollar" bo'limiga, barcha "qiyin" savollar 2 ballik
+     * "Qo'shimcha savollar" bo'limiga tushadi.
+     *
+     * @param  array  $testQuestions  MaterialSet::content['test_questions'] (~28-30 ta, difficulty bilan)
+     * @return array{title: string, subjectName: string, grade: int, topic: string, tier1: array, tier2: array}
      */
-    public function build(string $topic, string $subjectName, int $grade, int $duration, array $testQuestions): array
+    public function build(string $topic, string $subjectName, int $grade, array $testQuestions): array
     {
+        $split = $this->splitter->split($testQuestions);
+
         return [
-            'title' => "Chorak nazorat ishi: {$topic}",
+            'title' => 'Chorak nazorat ishi',
             'subjectName' => $subjectName,
             'grade' => $grade,
-            'duration' => $duration,
-            'questions' => $this->stripAnswers($testQuestions),
+            'topic' => $topic,
+            'tier1' => $this->stripAnswers($split['tier1']),
+            'tier2' => $this->stripAnswers($split['tier2']),
         ];
     }
 
     /**
      * @return array<int, array{text: string, options: array}>
      */
-    private function stripAnswers(array $testQuestions): array
+    private function stripAnswers(array $questions): array
     {
         return array_values(array_map(
             fn (array $q) => ['text' => $q['text'], 'options' => $q['options']],
-            $testQuestions,
+            $questions,
         ));
     }
 }

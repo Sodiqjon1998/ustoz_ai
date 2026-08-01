@@ -5,6 +5,13 @@ export async function listSubjects() {
   return data.data
 }
 
+export async function getPopularTopics(subjectId, grade) {
+  const { data } = await client.get(`/subjects/${subjectId}/popular-topics`, {
+    params: { grade },
+  })
+  return data.data
+}
+
 export async function listLessons() {
   const { data } = await client.get('/lessons')
   return data.data
