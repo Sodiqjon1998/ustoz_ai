@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\Setting;
 use App\Models\Subject;
 use Illuminate\Support\Facades\Http;
 
@@ -87,7 +88,7 @@ class GeminiService
      *
      * @throws \RuntimeException
      */
-    public function generateLessonContent(Subject $subject, int $grade, string $topic, int $duration, string $language): array
+    public function generateLessonContent(Subject $subject, int $grade, string $topic, int $duration, string $language, ?string $apiKey = null): array
     {
         $languageName = self::LANGUAGE_NAMES[$language] ?? "o'zbek";
         $subjectName = $subject->name_uz;
@@ -107,7 +108,7 @@ class GeminiService
 
         if (! $isCurated) {
             $prompt = $this->buildPrompt($subjectName, $grade, $topic, $duration, $languageName, $phaseTargets, $slideRange);
-            $data = $this->call($prompt);
+            $data = $this->call($prompt, $apiKey);
         }
 
         if (! is_array($data) || empty($data['phases']) || empty($data['slides'])) {
@@ -588,12 +589,16 @@ PROMPT;
      * va quyidagi normalize*() metodlari noto'g'ri/yetishmayotgan
      * maydonlarni filtrlab, halol tarzda qayta ishlaydi.
      */
-    private function call(string $prompt): mixed
+    private function call(string $prompt, ?string $apiKey = null): mixed
     {
-        $key = config('services.gemini.key');
+        // Ustunlik tartibi: 1) o'qituvchining shaxsiy kaliti (bor bo'lsa —
+        // uning o'z bepul kvotasidan sarflanadi, umumiy kalitga yuk tushmaydi)
+        // 2) admin panel > Sozlamalar orqali kiritilgan umumiy kalit
+        // 3) .env'dagi GEMINI_API_KEY.
+        $key = $apiKey ?: (Setting::get('gemini_api_key') ?: config('services.gemini.key'));
 
         if (! $key) {
-            throw new \RuntimeException("Gemini API kaliti sozlanmagan. .env faylga GEMINI_API_KEY qo'shing.");
+            throw new \RuntimeException("Gemini API kaliti sozlanmagan. Admin panel > Sozlamalar bo'limidan kiriting.");
         }
 
         // Asosiy modelning bepul kvotasi KUNLIK va tor — u tugaganda dars

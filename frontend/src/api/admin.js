@@ -50,6 +50,11 @@ export async function deleteTeacher(id) {
   return data.data
 }
 
+export async function setTeacherGeminiKey(id, geminiApiKey) {
+  const { data } = await client.post(`/admin/teachers/${id}/gemini-key`, { gemini_api_key: geminiApiKey })
+  return data.data
+}
+
 export async function listLeads(params = {}) {
   const { data } = await client.get('/admin/leads', { params })
   return data
@@ -125,5 +130,15 @@ export async function getCacheItem(id) {
 
 export async function deleteCacheItem(id) {
   const { data } = await client.delete(`/admin/cache/${id}`)
+  return data.data
+}
+
+export async function getSettings() {
+  const { data } = await client.get('/admin/settings')
+  return data.data
+}
+
+export async function updateSettings(payload) {
+  const { data } = await client.post('/admin/settings', payload)
   return data.data
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Copy, Pause, Play, KeyRound, Trash2 } from 'lucide-react'
+import { Copy, Pause, Play, KeyRound, Sparkles, Trash2 } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
+import Input from '../ui/Input'
 import Select from '../ui/Select'
 import { ProgressBar } from '../ui/Progress'
 import {
@@ -10,6 +11,7 @@ import {
   suspendTeacher,
   activateTeacher,
   resetTeacherPassword,
+  setTeacherGeminiKey,
   deleteTeacher,
   listPlans,
 } from '../../api/admin'
@@ -27,6 +29,8 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
   const [plans, setPlans] = useState([])
   const [planId, setPlanId] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [geminiKeyInput, setGeminiKeyInput] = useState('')
+  const [geminiSaved, setGeminiSaved] = useState(false)
 
   function refresh() {
     return getTeacher(teacherId).then(setTeacher)
@@ -65,6 +69,21 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
     try {
       await deleteTeacher(teacher.id)
       onDeleted?.()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSetGeminiKey(e) {
+    e.preventDefault()
+    setGeminiSaved(false)
+    setBusy(true)
+    try {
+      await setTeacherGeminiKey(teacher.id, geminiKeyInput.trim())
+      setGeminiKeyInput('')
+      setGeminiSaved(true)
+      await refresh()
+      onChanged?.()
     } finally {
       setBusy(false)
     }
@@ -189,6 +208,31 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
           ⚠️ Parol faqat hozir ko'rinadi. O'qituvchiga qo'lda yetkazing.
         </p>
       )}
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-brand-600" />
+          <h3 className="font-heading font-semibold text-text">Shaxsiy Gemini kaliti</h3>
+        </div>
+        <p className="text-sm text-text-mute">
+          {teacher.gemini_api_key_set ? (
+            <>O'rnatilgan ({teacher.gemini_api_key_masked}) — darslari shu kalit bilan yaratiladi.</>
+          ) : (
+            "O'rnatilmagan — darslari umumiy kvota bilan yaratiladi."
+          )}
+        </p>
+        <form onSubmit={handleSetGeminiKey} className="flex flex-col gap-2">
+          <Input
+            placeholder="AIza..."
+            value={geminiKeyInput}
+            onChange={(e) => setGeminiKeyInput(e.target.value)}
+          />
+          {geminiSaved && <p className="text-sm text-success">Saqlandi.</p>}
+          <Button type="submit" variant="secondary" disabled={busy || !geminiKeyInput.trim()}>
+            Kalitni saqlash
+          </Button>
+        </form>
+      </div>
 
       <div className="border-t border-border pt-4 text-sm text-text-mute">
         <p>Darslar: {teacher.lessons_count} · To'lagan: {teacher.total_paid_uzs.toLocaleString('uz-UZ')} so'm</p>

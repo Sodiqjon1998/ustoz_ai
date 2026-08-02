@@ -116,6 +116,7 @@ class LessonController extends Controller
                 $data['topic'],
                 $data['duration'],
                 $data['language'],
+                $request->user()->gemini_api_key,
             );
 
             $materialSet = MaterialSet::create([

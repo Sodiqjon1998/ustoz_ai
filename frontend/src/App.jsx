@@ -8,6 +8,10 @@ import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import TeachersPage from './pages/admin/TeachersPage'
 import LeadsPage from './pages/admin/LeadsPage'
+import CodesPage from './pages/admin/CodesPage'
+import PaymentsPage from './pages/admin/PaymentsPage'
+import CachePage from './pages/admin/CachePage'
+import SettingsPage from './pages/admin/SettingsPage'
 
 function App() {
   return (
@@ -22,6 +26,10 @@ function App() {
             <Route index element={<AdminDashboardPage />} />
             <Route path="oqituvchilar" element={<TeachersPage />} />
             <Route path="murojaatlar" element={<LeadsPage />} />
+            <Route path="kodlar" element={<CodesPage />} />
+            <Route path="tolovlar" element={<PaymentsPage />} />
+            <Route path="kesh" element={<CachePage />} />
+            <Route path="sozlamalar" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

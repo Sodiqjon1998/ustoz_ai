@@ -1,11 +1,15 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, UserPlus, Users, LogOut } from 'lucide-react'
+import { LayoutDashboard, UserPlus, Users, Ticket, Receipt, Database, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const TABS = [
   { to: '/admin', label: 'Bosh', icon: LayoutDashboard, end: true },
   { to: '/admin/murojaatlar', label: 'Murojaatlar', icon: UserPlus },
   { to: '/admin/oqituvchilar', label: "O'qituvchilar", icon: Users },
+  { to: '/admin/kodlar', label: 'Kodlar', icon: Ticket },
+  { to: '/admin/tolovlar', label: "To'lovlar", icon: Receipt },
+  { to: '/admin/kesh', label: 'Kesh', icon: Database },
+  { to: '/admin/sozlamalar', label: 'Sozlamalar', icon: Settings },
 ]
 
 export default function AdminLayout() {
@@ -27,14 +31,14 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      <nav className="mb-4 hidden gap-1 border-b border-border px-4 sm:flex">
+      <nav className="mb-4 hidden gap-1 overflow-x-auto border-b border-border px-4 sm:flex">
         {TABS.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}
             end={tab.end}
             className={({ isActive }) =>
-              `flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium ${
+              `flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium ${
                 isActive
                   ? 'border-brand-600 text-brand-700'
                   : 'border-transparent text-text-mute hover:text-text'
@@ -51,14 +55,14 @@ export default function AdminLayout() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-white sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-border bg-white sm:hidden">
         {TABS.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}
             end={tab.end}
             className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium ${
+              `flex w-16 shrink-0 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${
                 isActive ? 'text-brand-600' : 'text-text-mute'
               }`
             }

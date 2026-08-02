@@ -181,6 +181,21 @@ class TeacherController extends Controller
         return response()->json(['data' => ['message' => 'O\'chirildi.']]);
     }
 
+    /**
+     * O'qituvchining shaxsiy Gemini kalitini o'rnatish/o'chirish — shundan
+     * keyin uning darslari umumiy kvotaga emas, shu kalitga sarflanadi.
+     */
+    public function setGeminiKey(Request $request, User $teacher)
+    {
+        $data = $request->validate([
+            'gemini_api_key' => ['nullable', 'string', 'min:10', 'max:200'],
+        ]);
+
+        $teacher->forceFill(['gemini_api_key' => $data['gemini_api_key'] ?: null])->save();
+
+        return response()->json(['data' => $this->present($teacher)]);
+    }
+
     private function present(User $teacher): array
     {
         $subscription = $teacher->activeSubscription();
@@ -198,6 +213,8 @@ class TeacherController extends Controller
             'created_at' => $teacher->created_at->toIso8601String(),
             'lessons_count' => $teacher->lessons()->count(),
             'total_paid_uzs' => (int) $teacher->payments()->where('status', 'paid')->sum('amount_uzs'),
+            'gemini_api_key_set' => (bool) $teacher->gemini_api_key,
+            'gemini_api_key_masked' => $teacher->gemini_api_key ? $this->mask($teacher->gemini_api_key) : null,
             'subscription' => $latestSubscription ? [
                 'plan' => $latestSubscription->plan->name,
                 'status' => $latestSubscription->status,
@@ -210,5 +227,16 @@ class TeacherController extends Controller
                 'generation_limit' => $latestSubscription->plan->generation_limit,
             ] : null,
         ];
+    }
+
+    private function mask(string $key): string
+    {
+        $len = strlen($key);
+
+        if ($len <= 8) {
+            return str_repeat('•', $len);
+        }
+
+        return substr($key, 0, 4).str_repeat('•', $len - 8).substr($key, -4);
     }
 }

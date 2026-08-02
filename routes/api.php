@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Admin\DashboardController as AdminDashboardControll
 use App\Http\Controllers\Api\Admin\LeadController as AdminLeadController;
 use App\Http\Controllers\Api\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\Admin\PlanController as AdminPlanController;
+use App\Http\Controllers\Api\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Api\Admin\TeacherController as AdminTeacherController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\LessonController;
@@ -76,6 +77,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/teachers/{teacher}/suspend', [AdminTeacherController::class, 'suspend']);
             Route::post('/teachers/{teacher}/extend', [AdminTeacherController::class, 'extend']);
             Route::post('/teachers/{teacher}/reset-password', [AdminTeacherController::class, 'resetPassword']);
+            Route::post('/teachers/{teacher}/gemini-key', [AdminTeacherController::class, 'setGeminiKey']);
             Route::delete('/teachers/{teacher}', [AdminTeacherController::class, 'destroy']);
 
             Route::get('/codes', [AdminActivationCodeController::class, 'index']);
@@ -89,5 +91,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/cache', [AdminCacheController::class, 'index']);
             Route::get('/cache/{cache}', [AdminCacheController::class, 'show']);
             Route::delete('/cache/{cache}', [AdminCacheController::class, 'destroy']);
+
+            Route::get('/settings', [AdminSettingsController::class, 'show']);
+            Route::post('/settings', [AdminSettingsController::class, 'update']);
         });
 });
