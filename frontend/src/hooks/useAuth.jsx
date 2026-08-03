@@ -61,5 +61,5 @@ export function resolveAuthRoute(user) {
   if (user.role === 'teacher' && (user.status !== 'active' || !user.subscription)) {
     return '/faollashtirish'
   }
-  return user.role === 'teacher' ? '/' : '/admin'
+  return user.role === 'teacher' ? '/kabinet' : '/admin'
 }

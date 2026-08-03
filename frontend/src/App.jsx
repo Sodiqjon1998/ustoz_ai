@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './hooks/useAuth'
+import LandingPage from './pages/landing/LandingPage'
 import LoginPage from './pages/auth/LoginPage'
 import ForceChangePasswordPage from './pages/auth/ForceChangePasswordPage'
 import ActivationPage from './pages/auth/ActivationPage'
@@ -18,10 +19,11 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/parol-ornatish" element={<ForceChangePasswordPage />} />
           <Route path="/faollashtirish" element={<ActivationPage />} />
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/kabinet" element={<DashboardPage />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="oqituvchilar" element={<TeachersPage />} />

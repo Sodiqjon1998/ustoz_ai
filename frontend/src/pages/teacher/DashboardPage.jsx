@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [genState, setGenState] = useState(null) // { status: 'running'|'done'|'error', payload, result }
 
   const authRoute = user ? resolveAuthRoute(user) : null
-  const ready = authRoute === '/'
+  const ready = authRoute === '/kabinet'
 
   const refreshLessons = useCallback(() => {
     setLessonsLoading(true)

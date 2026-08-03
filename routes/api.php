@@ -18,9 +18,32 @@ Route::prefix('v1')->group(function () {
 
     // Ochiq — auth talab qilinmaydi (landing, buyurtma formasi)
     Route::prefix('public')->group(function () {
-        Route::post('/leads', function () {
-            return response()->json(['data' => ['message' => 'TODO: LeadController']]);
+        // Narxlar ro'yxati — landing sahifada ko'rsatiladi. Faqat pullik va faol
+        // tariflar (Sinov rejasi umumiy sotuvda ko'rinmasin).
+        Route::get('/plans', function () {
+            return response()->json([
+                'data' => \App\Models\Plan::where('is_active', true)
+                    ->where('price_uzs', '>', 0)
+                    ->orderBy('price_uzs')
+                    ->get(['id', 'name', 'price_uzs', 'duration_days', 'generation_limit']),
+            ]);
         });
+
+        // Fanlar ro'yxati — landing formada "qaysi fandan dars berasiz" tanlovi
+        // uchun. `/subjects` endpointining o'zi auth talab qiladi, shuning uchun
+        // shu yerda ochiq nusxa berilgan.
+        Route::get('/subjects', function () {
+            return response()->json([
+                'data' => \App\Models\Subject::where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->get(['id', 'name_uz']),
+            ]);
+        });
+
+        // Buyurtma yuborish — landing formadan keladi. Spam/bot bo'lishi mumkin
+        // bo'lgani uchun IP bo'yicha throttle: soatiga 5 ta so'rovdan ko'p emas.
+        Route::post('/leads', [\App\Http\Controllers\Api\Public\LeadController::class, 'store'])
+            ->middleware('throttle:5,60');
     });
 
     // Auth
