@@ -8,7 +8,6 @@ import { buildPptx } from './pptx/build.js'
 import { buildDocx } from './docx/build.js'
 import { buildHandoutPdf } from './pdf/handout.js'
 import { buildTestSimplePdf } from './pdf/test-simple.js'
-import { buildTestQuarterPdf } from './pdf/test-quarter.js'
 
 const app = express()
 const PORT = process.env.GENERATOR_PORT ?? 4000
@@ -101,22 +100,6 @@ app.post('/render/pdf/test-simple', async (req, res) => {
     res.json(await saveOutput('pdf_test_simple', 'pdf', buffer))
   } catch (err) {
     console.error('[render/pdf/test-simple]', err)
-    res.status(500).json({ error: err.message })
-  }
-})
-
-app.post('/render/pdf/test-quarter', async (req, res) => {
-  try {
-    const input = req.body
-
-    if (!input?.tier1?.length && !input?.tier2?.length) {
-      return res.status(422).json({ error: '"tier1"/"tier2" massivlari bo\'sh yoki yo\'q.' })
-    }
-
-    const buffer = await buildTestQuarterPdf(input)
-    res.json(await saveOutput('pdf_test_quarter', 'pdf', buffer))
-  } catch (err) {
-    console.error('[render/pdf/test-quarter]', err)
     res.status(500).json({ error: err.message })
   }
 })

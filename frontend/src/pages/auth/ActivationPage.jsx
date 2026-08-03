@@ -45,9 +45,9 @@ export default function ActivationPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input
           label="Faollashtirish kodi"
-          placeholder="USTOZ-0000"
+          placeholder="K7XQ93RT"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
           autoFocus
           required
           className="text-center text-lg tracking-wide uppercase"

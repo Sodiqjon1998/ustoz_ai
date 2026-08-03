@@ -60,11 +60,6 @@ class GeneratorClient
         return $this->renderPdf('test-simple', $payload);
     }
 
-    public function renderPdfTestQuarter(array $payload): array
-    {
-        return $this->renderPdf('test-quarter', $payload);
-    }
-
     /**
      * @return array{relative_path: string, file_size: int}
      *

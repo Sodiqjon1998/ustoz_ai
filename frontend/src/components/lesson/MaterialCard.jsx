@@ -1,4 +1,4 @@
-import { Presentation, FileText, Printer, ListChecks, ClipboardCheck, Download } from 'lucide-react'
+import { Presentation, FileText, Printer, ListChecks, Download } from 'lucide-react'
 import { formatFileSize } from '../../lib/format'
 import { downloadLesson } from '../../api/lessons'
 
@@ -7,7 +7,6 @@ export const MATERIAL_META = {
   docx: { icon: FileText, label: 'Konspekt', ext: 'docx', suffix: '' },
   pdf_handout: { icon: Printer, label: 'Tarqatma materiallar', ext: 'pdf', suffix: '-tarqatma' },
   pdf_test_simple: { icon: ListChecks, label: 'Oddiy test', ext: 'pdf', suffix: '-test' },
-  pdf_test_quarter: { icon: ClipboardCheck, label: 'Chorak testi', ext: 'pdf', suffix: '-chorak-testi' },
 }
 
 export default function MaterialCard({ lessonId, lessonTitle, material }) {

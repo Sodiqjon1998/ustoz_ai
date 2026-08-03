@@ -67,7 +67,7 @@ class AuthController extends Controller
             'code' => ['required', 'string'],
         ]);
 
-        $code = ActivationCode::where('code', $data['code'])->first();
+        $code = ActivationCode::where('code', strtoupper(trim($data['code'])))->first();
 
         if (! $code || ! $code->isUsable()) {
             return response()->json([

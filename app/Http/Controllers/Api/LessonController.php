@@ -14,7 +14,6 @@ use App\Services\Generator\DocxOutlineBuilder;
 use App\Services\Generator\GeneratorClient;
 use App\Services\Generator\HandoutBuilder;
 use App\Services\Generator\PresentationBuilder;
-use App\Services\Generator\TestQuarterBuilder;
 use App\Services\Generator\TestSimpleBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +44,6 @@ class LessonController extends Controller
         DocxOutlineBuilder $docxOutlineBuilder,
         HandoutBuilder $handoutBuilder,
         TestSimpleBuilder $testSimpleBuilder,
-        TestQuarterBuilder $testQuarterBuilder,
         GeneratorClient $generatorClient,
     ) {
         $data = $request->validate([
@@ -237,27 +235,6 @@ class LessonController extends Controller
                 Log::warning('PDF test (oddiy) generatsiyasi muvaffaqiyatsiz: '.$e->getMessage());
             }
 
-            try {
-                $testQuarter = $testQuarterBuilder->build(
-                    $data['topic'],
-                    $subject->name_uz,
-                    $data['grade'],
-                    $content['test_questions'],
-                );
-
-                $render = $generatorClient->renderPdfTestQuarter($testQuarter);
-
-                Material::create([
-                    'material_set_id' => $materialSet->id,
-                    'type' => 'pdf_test_quarter',
-                    'disk' => 'local',
-                    'path' => 'generated/'.str_replace('\\', '/', $render['relative_path']),
-                    'file_size' => $render['file_size'],
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('PDF chorak testi generatsiyasi muvaffaqiyatsiz: '.$e->getMessage());
-            }
-
             $job->update([
                 'status' => 'done',
                 'progress' => 100,
@@ -292,7 +269,6 @@ class LessonController extends Controller
         'docx' => 'docx',
         'pdf_handout' => 'pdf',
         'pdf_test_simple' => 'pdf',
-        'pdf_test_quarter' => 'pdf',
     ];
 
     public function download(Request $request, Lesson $lesson, string $type)

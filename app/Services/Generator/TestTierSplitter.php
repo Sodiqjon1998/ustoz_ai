@@ -9,8 +9,7 @@ class TestTierSplitter
      * bilan belgilangan) ikki bosqichli chop etish strukturasiga bo'ladi:
      * tier1 — "oson"+"orta" (1 ballik "Asosiy savollar"), tier2 — "qiyin"
      * (2 ballik "Qo'shimcha savollar"). $tier1Cap/$tier2Cap null bo'lsa,
-     * shu toifadagi BARCHA savollar ishlatiladi (masalan chorak nazorat
-     * ishi uchun to'liq savol banki).
+     * shu toifadagi BARCHA savollar ishlatiladi.
      *
      * @param  array  $questions  {text, options, correct_index, explanation, difficulty}[]
      * @return array{tier1: array, tier2: array}
