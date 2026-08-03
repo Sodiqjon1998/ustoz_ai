@@ -70,9 +70,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/lessons', [LessonController::class, 'index']);
         Route::get('/lessons/{lesson}/download/{type}', [LessonController::class, 'download']);
 
-        // Haqiqiy AI generatsiya ulanganda bu yerga 'quota' middleware qo'shiladi
-        // (hozircha faqat kesh tekshiruvi + navbatga qo'yish, quota sarflanmaydi).
-        Route::post('/lessons', [LessonController::class, 'store']);
+        Route::post('/lessons', [LessonController::class, 'store'])->middleware('quota');
     });
 
     // Admin — auth -> faol akkaunt -> rol tekshiruvi

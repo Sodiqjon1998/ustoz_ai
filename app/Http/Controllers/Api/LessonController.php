@@ -84,6 +84,11 @@ class LessonController extends Controller
                 'was_cache_hit' => true,
             ]);
 
+            // Kesh-hit ham tarifning oylik dars-kvotasidan hisoblanadi — bu
+            // AI xarajati emas, xizmatdan foydalanish chegarasi (CheckGenerationQuota
+            // shu maydonni tekshiradi).
+            $request->attributes->get('subscription')?->increment('generations_used');
+
             return response()->json([
                 'data' => $lesson->load('subject:id,name_uz,icon,color'),
                 'cache_hit' => true,
@@ -117,6 +122,8 @@ class LessonController extends Controller
                 $data['duration'],
                 $data['language'],
                 $request->user()->gemini_api_key,
+                $request->user()->gemini_api_key_2,
+                $request->user()->id,
             );
 
             $materialSet = MaterialSet::create([
@@ -271,6 +278,8 @@ class LessonController extends Controller
                 ]],
             ], 502);
         }
+
+        $request->attributes->get('subscription')?->increment('generations_used');
 
         return response()->json([
             'data' => $lesson->fresh()->load('subject:id,name_uz,icon,color'),

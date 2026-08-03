@@ -14,9 +14,9 @@ use Laravel\Sanctum\HasApiTokens;
 #[Fillable([
     'full_name', 'email', 'password', 'phone', 'role', 'teacher_code',
     'status', 'school', 'region', 'default_subject_id', 'default_language',
-    'must_change_password', 'created_by', 'gemini_api_key',
+    'must_change_password', 'created_by', 'gemini_api_key', 'gemini_api_key_2',
 ])]
-#[Hidden(['password', 'remember_token', 'gemini_api_key'])]
+#[Hidden(['password', 'remember_token', 'gemini_api_key', 'gemini_api_key_2'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -35,6 +35,7 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'last_login_at' => 'datetime',
             'gemini_api_key' => 'encrypted',
+            'gemini_api_key_2' => 'encrypted',
         ];
     }
 

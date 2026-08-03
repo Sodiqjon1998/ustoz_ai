@@ -12,6 +12,9 @@ use App\Models\User;
 
 class DashboardController extends Controller
 {
+    /** TeacherController::GEMINI_FREE_DAILY_LIMIT bilan bir xil — Google'ning bepul kvota chegarasi. */
+    private const GEMINI_FREE_DAILY_LIMIT = TeacherController::GEMINI_FREE_DAILY_LIMIT;
+
     public function stats()
     {
         $teacherCount = User::where('role', 'teacher')->count();
@@ -40,6 +43,15 @@ class DashboardController extends Controller
             ->whereBetween('ends_at', [now(), now()->addDays(3)])
             ->count();
 
+        // Umumiy (admin Sozlamalar yoki .env) kalitdan bugun necha so'rov
+        // ketgani — o'qituvchilarning shaxsiy kaliti bo'lmaganda barchasi
+        // shu BITTA kvotani baham ko'radi, shuning uchun bu eng tez tugaydigan
+        // resurs.
+        $sharedUsedToday = (int) AiUsageLog::where('provider', 'gemini')
+            ->where('key_source', 'shared')
+            ->whereDate('created_at', now())
+            ->count();
+
         return response()->json([
             'data' => [
                 'teacher_count' => $teacherCount,
@@ -50,6 +62,11 @@ class DashboardController extends Controller
                 'month_lessons' => $monthLessons,
                 'new_leads_count' => $newLeadsCount,
                 'expiring_soon_count' => $expiringSoonCount,
+                'shared_gemini_usage_today' => [
+                    'count' => $sharedUsedToday,
+                    'limit' => self::GEMINI_FREE_DAILY_LIMIT,
+                    'percent' => min(100, (int) round($sharedUsedToday / self::GEMINI_FREE_DAILY_LIMIT * 100)),
+                ],
             ],
         ]);
     }

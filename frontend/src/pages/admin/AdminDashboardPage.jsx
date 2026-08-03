@@ -34,6 +34,11 @@ export default function AdminDashboardPage() {
         <StatTile value={stats ? `$${stats.month_ai_cost_usd}` : undefined} label="AI xarajat" />
         <StatTile value={stats ? `${stats.cache_hit_rate}%` : undefined} label="Kesh hit" />
         <StatTile value={stats?.month_lessons} label="Bu oy dars" />
+        <StatTile
+          value={stats ? `${stats.shared_gemini_usage_today.count}/${stats.shared_gemini_usage_today.limit}` : undefined}
+          label="Umumiy AI kvota"
+          danger={stats?.shared_gemini_usage_today.percent >= 80}
+        />
       </div>
 
       {stats?.expiring_soon_count > 0 && (
@@ -44,6 +49,16 @@ export default function AdminDashboardPage() {
             <Link to="/admin/oqituvchilar" className="underline">
               ko'rish
             </Link>
+          </p>
+        </div>
+      )}
+
+      {stats?.shared_gemini_usage_today.percent >= 80 && (
+        <div className="flex items-center gap-2 rounded-xl bg-danger/10 px-4 py-3 text-danger">
+          <Clock className="h-5 w-5 shrink-0" />
+          <p className="text-sm font-medium">
+            Umumiy Gemini kvota bugun deyarli tugadi ({stats.shared_gemini_usage_today.count}/
+            {stats.shared_gemini_usage_today.limit}) — shaxsiy kaliti yo'q o'qituvchilar xato oladi.
           </p>
         </div>
       )}
@@ -111,10 +126,10 @@ export default function AdminDashboardPage() {
   )
 }
 
-function StatTile({ value, label, small }) {
+function StatTile({ value, label, small, danger }) {
   return (
     <div className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-border bg-white px-2 py-4 text-center">
-      <span className={`font-heading font-bold text-text ${small ? 'text-base' : 'text-2xl'}`}>
+      <span className={`font-heading font-bold ${small ? 'text-base' : 'text-2xl'} ${danger ? 'text-danger' : 'text-text'}`}>
         {value ?? <span className="inline-block h-6 w-10 animate-pulse rounded bg-bg-subtle" />}
       </span>
       <span className="text-sm text-text-mute">{label}</span>

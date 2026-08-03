@@ -8,7 +8,7 @@ class PresentationBuilder
     private const TEXT_LAYOUTS = ['bullets', 'prose'];
 
     /** Vizual maketlar — har biri o'z qo'shimcha maydonini talab qiladi. */
-    private const VISUAL_LAYOUTS = ['chart', 'process', 'compare'];
+    private const VISUAL_LAYOUTS = ['chart', 'process', 'compare', 'cards', 'cycle'];
 
     /**
      * GeminiService::generateLessonContent() natijasidagi "slides" massivini
@@ -126,7 +126,7 @@ class PresentationBuilder
             ];
         }
 
-        if ($type === 'process') {
+        if ($type === 'process' || $type === 'cycle') {
             $steps = [];
 
             foreach ((array) ($slide['steps'] ?? []) as $step) {
@@ -140,7 +140,28 @@ class PresentationBuilder
                 ];
             }
 
-            return count($steps) >= 3 ? ['steps' => array_slice($steps, 0, 5)] : null;
+            // process — 3-5 qadam; cycle (aylanma) — 3-6 qadam (yopiq halqa).
+            $max = $type === 'cycle' ? 6 : 5;
+
+            return count($steps) >= 3 ? ['steps' => array_slice($steps, 0, $max)] : null;
+        }
+
+        if ($type === 'cards') {
+            $cards = [];
+
+            foreach ((array) ($slide['cards'] ?? []) as $card) {
+                if (! is_array($card) || empty($card['title'])) {
+                    continue;
+                }
+
+                $cards[] = [
+                    'title' => (string) $card['title'],
+                    'desc' => (string) ($card['desc'] ?? ''),
+                ];
+            }
+
+            // Kamida 2 ta kartochka bo'lsin — bittasi to'r hosil qilmaydi.
+            return count($cards) >= 2 ? ['cards' => array_slice($cards, 0, 6)] : null;
         }
 
         $compare = (array) ($slide['compare'] ?? []);

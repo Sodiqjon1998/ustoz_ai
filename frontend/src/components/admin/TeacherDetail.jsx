@@ -29,8 +29,6 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
   const [plans, setPlans] = useState([])
   const [planId, setPlanId] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [geminiKeyInput, setGeminiKeyInput] = useState('')
-  const [geminiSaved, setGeminiSaved] = useState(false)
 
   function refresh() {
     return getTeacher(teacherId).then(setTeacher)
@@ -74,19 +72,9 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
     }
   }
 
-  async function handleSetGeminiKey(e) {
-    e.preventDefault()
-    setGeminiSaved(false)
-    setBusy(true)
-    try {
-      await setTeacherGeminiKey(teacher.id, geminiKeyInput.trim())
-      setGeminiKeyInput('')
-      setGeminiSaved(true)
-      await refresh()
-      onChanged?.()
-    } finally {
-      setBusy(false)
-    }
+  async function handleGeminiKeySaved() {
+    await refresh()
+    onChanged?.()
   }
 
   if (!teacher) {
@@ -209,29 +197,46 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
         </p>
       )}
 
-      <div className="flex flex-col gap-2 border-t border-border pt-4">
+      <div className="flex flex-col gap-3 border-t border-border pt-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand-600" />
-          <h3 className="font-heading font-semibold text-text">Shaxsiy Gemini kaliti</h3>
+          <h3 className="font-heading font-semibold text-text">Shaxsiy Gemini kalitlari</h3>
         </div>
-        <p className="text-sm text-text-mute">
-          {teacher.gemini_api_key_set ? (
-            <>O'rnatilgan ({teacher.gemini_api_key_masked}) — darslari shu kalit bilan yaratiladi.</>
-          ) : (
-            "O'rnatilmagan — darslari umumiy kvota bilan yaratiladi."
-          )}
+        <p className="text-xs text-text-mute -mt-1.5">
+          Asosiy kalitning kunlik bepul kvotasi tugasa, zaxira kalit avtomatik ishga tushadi. Ikkalasi ham
+          bo'lmasa — umumiy kvota ishlatiladi.
         </p>
-        <form onSubmit={handleSetGeminiKey} className="flex flex-col gap-2">
-          <Input
-            placeholder="AIza..."
-            value={geminiKeyInput}
-            onChange={(e) => setGeminiKeyInput(e.target.value)}
-          />
-          {geminiSaved && <p className="text-sm text-success">Saqlandi.</p>}
-          <Button type="submit" variant="secondary" disabled={busy || !geminiKeyInput.trim()}>
-            Kalitni saqlash
-          </Button>
-        </form>
+        {teacher.gemini_usage_today && (
+          <div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-mute">Bugungi so'rovlar (jami)</span>
+              <span className={teacher.gemini_usage_today.percent >= 80 ? 'font-medium text-danger' : 'text-text-mute'}>
+                {teacher.gemini_usage_today.count} / {teacher.gemini_usage_today.limit} ({teacher.gemini_usage_today.percent}%)
+              </span>
+            </div>
+            <ProgressBar value={teacher.gemini_usage_today.percent} className="mt-1.5" />
+            <p className="mt-1 text-xs text-text-mute">
+              Bepul reja taxminiga ko'ra (kalit boshiga kunlik {teacher.gemini_usage_today.limit} so'rov) — Pacific
+              vaqti bo'yicha yarim tunda yangilanadi.
+            </p>
+          </div>
+        )}
+        <GeminiKeySlot
+          teacherId={teacher.id}
+          slot={1}
+          label="Asosiy kalit"
+          keySet={teacher.gemini_api_key_set}
+          masked={teacher.gemini_api_key_masked}
+          onSaved={handleGeminiKeySaved}
+        />
+        <GeminiKeySlot
+          teacherId={teacher.id}
+          slot={2}
+          label="Zaxira kalit"
+          keySet={teacher.gemini_api_key_2_set}
+          masked={teacher.gemini_api_key_2_masked}
+          onSaved={handleGeminiKeySaved}
+        />
       </div>
 
       <div className="border-t border-border pt-4 text-sm text-text-mute">
@@ -264,6 +269,42 @@ export default function TeacherDetail({ teacherId, onChanged, onDeleted }) {
           />
         )}
       </div>
+    </div>
+  )
+}
+
+function GeminiKeySlot({ teacherId, slot, label, keySet, masked, onSaved }) {
+  const [input, setInput] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSaved(false)
+    setBusy(true)
+    try {
+      await setTeacherGeminiKey(teacherId, input.trim(), slot)
+      setInput('')
+      setSaved(true)
+      await onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-border p-3">
+      <p className="text-sm text-text-mute">
+        <span className="font-medium text-text">{label}:</span>{' '}
+        {keySet ? `O'rnatilgan (${masked})` : "O'rnatilmagan"}
+      </p>
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input placeholder="AIza..." value={input} onChange={(e) => setInput(e.target.value)} />
+        <Button type="submit" variant="secondary" disabled={busy || !input.trim()}>
+          Saqlash
+        </Button>
+      </form>
+      {saved && <p className="text-sm text-success">Saqlandi.</p>}
     </div>
   )
 }

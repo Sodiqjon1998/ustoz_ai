@@ -34,6 +34,15 @@ export default function TeacherCard({ teacher, onOpen }) {
         <span className="text-xs text-text-mute">
           {sub ? `${daysLeft} kun qoldi` : 'Obuna yo\'q'}
         </span>
+        {teacher.gemini_usage_today?.count > 0 && (
+          <span
+            className={`text-xs ${
+              teacher.gemini_usage_today.percent >= 80 ? 'text-danger' : 'text-text-mute'
+            }`}
+          >
+            AI: {teacher.gemini_usage_today.count}/{teacher.gemini_usage_today.limit} ({teacher.gemini_usage_today.percent}%)
+          </span>
+        )}
       </div>
     </motion.button>
   )

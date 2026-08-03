@@ -2,12 +2,21 @@
 
 namespace App\Services\Ai;
 
+use App\Models\AiUsageLog;
 use App\Models\Setting;
 use App\Models\Subject;
 use Illuminate\Support\Facades\Http;
 
 class GeminiService
 {
+    /** call() muvaffaqiyatli bo'lgan so'rovda qaysi model/token statistikasi ishlatilganini eslab qoladi. */
+    private ?string $lastUsedModel = null;
+
+    private ?array $lastUsage = null;
+
+    /** Muvaffaqiyatli so'rovda qaysi kalit ishlatilgani: personal_1/personal_2/shared. */
+    private ?string $lastKeySource = null;
+
     private const LANGUAGE_NAMES = [
         'uz' => "o'zbek",
         'ru' => 'rus',
@@ -69,8 +78,8 @@ class GeminiService
      */
     private const MIN_SLIDES = 7;
 
-    /** Slayd maketlari — "chart"/"process"/"compare" vizual maketlar. */
-    private const SLIDE_TYPES = ['bullets', 'prose', 'process', 'compare', 'chart'];
+    /** Slayd maketlari — "chart"/"process"/"compare"/"cards"/"cycle" vizual maketlar. */
+    private const SLIDE_TYPES = ['bullets', 'prose', 'process', 'compare', 'chart', 'cards', 'cycle'];
 
     /**
      * @return array{
@@ -88,7 +97,7 @@ class GeminiService
      *
      * @throws \RuntimeException
      */
-    public function generateLessonContent(Subject $subject, int $grade, string $topic, int $duration, string $language, ?string $apiKey = null): array
+    public function generateLessonContent(Subject $subject, int $grade, string $topic, int $duration, string $language, ?string $apiKey = null, ?string $apiKey2 = null, ?int $userId = null): array
     {
         $languageName = self::LANGUAGE_NAMES[$language] ?? "o'zbek";
         $subjectName = $subject->name_uz;
@@ -108,7 +117,23 @@ class GeminiService
 
         if (! $isCurated) {
             $prompt = $this->buildPrompt($subjectName, $grade, $topic, $duration, $languageName, $phaseTargets, $slideRange);
-            $data = $this->call($prompt, $apiKey);
+            $data = $this->call($prompt, $apiKey, $apiKey2);
+
+            // Har bir HAQIQIY Gemini so'rovi (curated emas) shu yerda qayd
+            // etiladi — admin panelda o'qituvchining kunlik bepul kvotadan
+            // necha foizini ishlatganini va umumiy (shared/.env) kvota
+            // sarfini ko'rsatish uchun.
+            if ($userId) {
+                AiUsageLog::create([
+                    'user_id' => $userId,
+                    'provider' => 'gemini',
+                    'key_source' => $this->lastKeySource,
+                    'model' => $this->lastUsedModel,
+                    'step' => 'lesson_generation',
+                    'input_tokens' => $this->lastUsage['promptTokenCount'] ?? null,
+                    'output_tokens' => $this->lastUsage['candidatesTokenCount'] ?? null,
+                ]);
+            }
         }
 
         if (! is_array($data) || empty($data['phases']) || empty($data['slides'])) {
@@ -257,35 +282,40 @@ Quyidagi tuzilmani to'ldir:
    - "title_meta" — sarlavha slaydi pastidagi kichik metama'lumot qatori uchun 2-3 ta juda qisqa, mavzuga oid faktik parcha (masalan sana, joy, muhim raqam — mavzuga mos bo'lsa)
    - "slides" — ANIQ {$slideCount} ta kontent slaydi (sarlavha slaydi dasturda alohida qo'shiladi, jami {$totalPages} sahifa bo'ladi). Kam ham, ko'p ham emas — ANIQ {$slideCount} ta.
 
-   Slaydlar mana shu rivojlanish bo'yicha qurilsin. 6- va 8-slaydlarning MAKETI QAT'IY BELGILANGAN:
+   Slaydlar mana shu rivojlanish bo'yicha qurilsin. 2-, 5-, 6- va 8-slaydlarning MAKETI QAT'IY BELGILANGAN — ular diagramma sifatida chiziladi:
      1   — mavzuga kirish: bu nima va nima uchun kerak, qanday savolga javob beradi
-     2-5 — asosiy tushunchalar, har birida aniq ta'rif + konkret misol
-     6   — bosqichma-bosqich tartib yoki algoritm  →  "body.type" ANIQ "process" BO'LSIN va "steps" to'ldirilsin
+     2   — mavzuning asosiy tushuncha/atamalari BIR QARASHDA  →  "body.type" ANIQ "cards" BO'LSIN va "cards" to'ldirilsin (3-4 ta atama, har birida qisqa ta'rif)
+     3-4 — eng muhim 1-2 tushunchani CHUQUR ochish, aniq ta'rif + konkret misol
+     5   — yana bir guruh o'zaro bog'liq tushuncha/tur/xususiyat  →  "body.type" ANIQ "cards" BO'LSIN va "cards" to'ldirilsin (3-4 ta karta)
+     6   — bosqichma-bosqich tartib yoki algoritm  →  "body.type" ANIQ "process" BO'LSIN va "steps" to'ldirilsin.
+            AGAR bu jarayon TAKRORLANUVCHI, yopiq halqa bo'lsa (masalan tabiatdagi aylanishlar, hayot sikli, qayta aloqa halqasi, fasllar) — "process" o'rniga "cycle" tanla va xuddi shu "steps"ni to'ldir.
      7   — amaliy qo'llanish yoki to'liq ishlangan misol (masala yechimi, kod, tahlil, tajriba)
      8   — ikki narsani taqqoslash (turlari, usullari, oldin/keyin, to'g'ri/noto'g'ri)  →  "body.type" ANIQ "compare" BO'LSIN va "compare" to'ldirilsin
      9   — qiziqarli faktlar, tarix yoki mavzuning real hayot bilan bog'liqligi
      10  — xulosa: eslab qolish kerak bo'lgan 3-5 ta kalit fikr
 
-   6- va 8-slaydlar diagramma sifatida chiziladi. Ularsiz taqdimot faqat matn bo'lib qoladi — bu TALABNI BUZISH hisoblanadi.
-   Har bir slaydda "body.paragraphs" bo'lishi kerak (process/compare uchun ham 2-3 ta qisqa punkt) — bo'sh qoldirma.
+   Bu 4 ta diagramma slaydsiz (2, 5, 6, 8) taqdimot faqat matn bo'lib qoladi — bu TALABNI BUZISH hisoblanadi.
+   "cards" atamalari BITTA- IKKITA so'zli sarlavha (atama nomi) + 1 gaplik qisqa ta'rif bo'lsin — uzun jumla YOZMA (kartaga sig'maydi).
+   "cards", "process", "cycle", "compare" slaydlarida "body.paragraphs" BO'SH bo'lsa ham bo'ladi — mazmun o'z maydonida ("cards"/"steps"/"compare") keladi. Matnli slaydlarda (bullets/prose) esa "body.paragraphs" to'ldirilsin.
 
    Har bir slaydda:
    - "title" — SHU slaydga xos, ANIQ va jonli sarlavha. "Kirish", "1-qism", "Asosiy tushunchalar", "Xulosa" kabi umumiy sarlavhalar TAQIQLANADI — sarlavhaning o'zi mazmunni aytib tursin.
    - "notes" — o'qituvchi uchun 1-2 gap izoh: shu slaydni qanday tushuntirish, sinfga qanday savol berish.
-   - "body.type" — quyidagi 4 turdan mazmunga eng mosini tanla:
+   - "body.type" — quyidagi turlardan mazmunga eng mosini tanla (2/5/6/8-slaydlar uchun yuqorida QAT'IY belgilangan):
 
+     "cards"   — bir necha o'zaro bog'liq atama/tur/xususiyat, har biri qisqa ta'rif bilan (kartochkalar to'ri)
+     "cycle"   — takrorlanuvchi, yopiq halqa jarayon (tabiatdagi aylanishlar, hayot sikli, qayta aloqa)
+     "process" — bosqichma-bosqich jarayon: algoritm, tartib, bajarish ketma-ketligi (chiziqli, halqasiz)
+     "compare" — ikki narsani taqqoslash: afzallik/kamchilik, oldin/keyin, ikki usul farqi
      "bullets" — 3-6 ta qisqa, har biri aniq ma'lumot beruvchi punkt
      "prose"   — 1-2 ta qisqa paragraf (hikoya, tavsif, tarixiy voqea uchun)
-     "process" — bosqichma-bosqich jarayon: algoritm, tartib, bajarish ketma-ketligi
-     "compare" — ikki narsani taqqoslash: afzallik/kamchilik, oldin/keyin, ikki usul farqi
 
-   VIZUAL TALAB: {$slideCount} ta slaydning KAMIDA 2 tasi "process" yoki "compare" bo'lsin — taqdimot faqat matndan iborat bo'lib qolmasin. Bu ikki maket diagramma ko'rinishida chiziladi.
-
-   DIAGRAMMA/GRAFIK haqida: raqamli diagramma (foiz, ulush, statistika) SO'RALMAYDI va uni yasashga urinma. "Tilda necha foiz uchraydi", "foydalanuvchilarning necha foizi" kabi taxminiy sonlar deyarli har doim noto'g'ri bo'ladi va dars materialini yaroqsiz qiladi. Vizual xilma-xillik "process" va "compare" orqali beriladi — ular son talab qilmaydi.
+   DIAGRAMMA/GRAFIK haqida: raqamli diagramma (foiz, ulush, statistika) SO'RALMAYDI va uni yasashga urinma. "Tilda necha foiz uchraydi", "foydalanuvchilarning necha foizi" kabi taxminiy sonlar deyarli har doim noto'g'ri bo'ladi va dars materialini yaroqsiz qiladi. Vizual xilma-xillik "cards", "cycle", "process" va "compare" orqali beriladi — ular son talab qilmaydi.
 
    Turga qarab qo'shimcha maydonlar:
    - "bullets"/"prose" uchun: "body.paragraphs" — bullets bo'lsa 3-6 ta qisqa punkt, prose bo'lsa 1-2 ta paragraf (har biri ~2 gap)
-   - "process" uchun: "steps" — 3-5 ta qadam, har biri {"title": "qadam nomi (2-4 so'z)", "detail": "1 gap izoh"}
+   - "cards" uchun: "cards" — 3-4 ta karta, har biri {"title": "atama (1-2 so'z)", "desc": "1 gaplik qisqa ta'rif"}
+   - "process"/"cycle" uchun: "steps" — 3-5 ta qadam (cycle uchun 3-6), har biri {"title": "qadam nomi (2-4 so'z)", "detail": "1 gap izoh"}
    - "compare" uchun: "compare" — {"left": {"heading": "...", "items": ["...", "..."]}, "right": {"heading": "...", "items": ["...", "..."]}}, har tomonda 2-5 ta qisqa punkt
 
    Slaydlar birgalikda "Yangi mavzu bayoni" va "Mustahkamlash" bosqichlaridagi mazmunni qamrab olsin, lekin slaydga sig'adigan hajmda bo'lsin — katta matn devori YARATMA.
@@ -313,6 +343,7 @@ Javobni FAQAT quyidagi JSON shakliga ANIQ mos formatda qaytar, boshqa hech qanda
   "title_meta": ["...", "..."],
   "slides": [
     {"title": "...", "notes": "...", "body": {"type": "prose", "paragraphs": ["...", "..."]}},
+    {"title": "...", "notes": "...", "body": {"type": "cards"}, "cards": [{"title": "...", "desc": "..."}, {"title": "...", "desc": "..."}, {"title": "...", "desc": "..."}]},
     {"title": "...", "notes": "...", "body": {"type": "bullets", "paragraphs": ["...", "...", "..."]}},
     {"title": "...", "notes": "...", "body": {"type": "process"}, "steps": [{"title": "...", "detail": "..."}, {"title": "...", "detail": "..."}, {"title": "...", "detail": "..."}]},
     {"title": "...", "notes": "...", "body": {"type": "compare"}, "compare": {"left": {"heading": "...", "items": ["...", "..."]}, "right": {"heading": "...", "items": ["...", "..."]}}}
@@ -437,7 +468,7 @@ PROMPT;
 
             $slide += $this->normalizeVisual($type, $s, $isCurated);
 
-            $hasVisual = isset($slide['chart']) || isset($slide['steps']) || isset($slide['compare']);
+            $hasVisual = isset($slide['chart']) || isset($slide['steps']) || isset($slide['compare']) || isset($slide['cards']);
 
             // Paragraflar ham, vizual ma'lumot ham bo'lmasa — ko'rsatadigan narsa yo'q.
             if ($paragraphs === [] && ! $hasVisual) {
@@ -505,7 +536,7 @@ PROMPT;
             ]];
         }
 
-        if ($type === 'process') {
+        if ($type === 'process' || $type === 'cycle') {
             $steps = [];
 
             foreach ((array) ($s['steps'] ?? []) as $step) {
@@ -518,6 +549,21 @@ PROMPT;
             }
 
             return count($steps) >= 3 ? ['steps' => $steps] : [];
+        }
+
+        if ($type === 'cards') {
+            $cards = [];
+
+            foreach ((array) ($s['cards'] ?? []) as $card) {
+                if (is_array($card) && ! empty($card['title'])) {
+                    $cards[] = [
+                        'title' => (string) $card['title'],
+                        'desc' => (string) ($card['desc'] ?? ''),
+                    ];
+                }
+            }
+
+            return count($cards) >= 2 ? ['cards' => array_slice($cards, 0, 6)] : [];
         }
 
         if ($type === 'compare') {
@@ -589,15 +635,31 @@ PROMPT;
      * va quyidagi normalize*() metodlari noto'g'ri/yetishmayotgan
      * maydonlarni filtrlab, halol tarzda qayta ishlaydi.
      */
-    private function call(string $prompt, ?string $apiKey = null): mixed
+    private function call(string $prompt, ?string $apiKey = null, ?string $apiKey2 = null): mixed
     {
-        // Ustunlik tartibi: 1) o'qituvchining shaxsiy kaliti (bor bo'lsa —
-        // uning o'z bepul kvotasidan sarflanadi, umumiy kalitga yuk tushmaydi)
-        // 2) admin panel > Sozlamalar orqali kiritilgan umumiy kalit
-        // 3) .env'dagi GEMINI_API_KEY.
-        $key = $apiKey ?: (Setting::get('gemini_api_key') ?: config('services.gemini.key'));
+        // Ustunlik tartibi — har biri ALOHIDA Google akkauntiga (demak alohida
+        // kunlik kvotaga) tegishli, shuning uchun biri tugasa avtomatik
+        // keyingisiga o'tiladi:
+        //   1) o'qituvchining birinchi shaxsiy kaliti
+        //   2) o'qituvchining ikkinchi (zaxira) shaxsiy kaliti
+        //   3) admin panel > Sozlamalar'dagi umumiy kalit, bo'lmasa .env'dagi
+        //      GEMINI_API_KEY (bular ikkalasi ham BITTA "shared" kvota
+        //      sifatida hisoblanadi — Sozlamalar bo'sh bo'lsa .env ishlatiladi,
+        //      ikkalasi birga sinalmaydi).
+        $sharedOrEnvKey = Setting::get('gemini_api_key') ?: config('services.gemini.key');
 
-        if (! $key) {
+        $candidates = [];
+        if ($apiKey) {
+            $candidates[] = ['key' => $apiKey, 'source' => 'personal_1'];
+        }
+        if ($apiKey2) {
+            $candidates[] = ['key' => $apiKey2, 'source' => 'personal_2'];
+        }
+        if ($sharedOrEnvKey) {
+            $candidates[] = ['key' => $sharedOrEnvKey, 'source' => 'shared'];
+        }
+
+        if (empty($candidates)) {
             throw new \RuntimeException("Gemini API kaliti sozlanmagan. Admin panel > Sozlamalar bo'limidan kiriting.");
         }
 
@@ -611,53 +673,60 @@ PROMPT;
 
         $lastError = null;
 
-        foreach ($models as $model) {
-            $response = Http::timeout(180)->post(
-                "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
-                [
-                    'contents' => [
-                        ['parts' => [['text' => $prompt]]],
-                    ],
-                    'generationConfig' => [
-                        'response_mime_type' => 'application/json',
-                        // Past temperatura — faktik aniqlik ijodkorlikdan muhimroq
-                        // (o'ylab topilgan sana/statistika eng og'ir xato).
-                        'temperature' => 0.55,
-                        // 9 ta boy slayd + 6 bosqich + 30 test savoli 16k'ga sig'may,
-                        // javob yarim kesilib qolardi (finishReason: MAX_TOKENS).
-                        'maxOutputTokens' => 32768,
-                    ],
-                ]
-            );
-
-            if ($response->status() === 429) {
-                // Kvota tugagan — keyingi modelni sinaymiz.
-                $lastError = 'quota';
-
-                continue;
-            }
-
-            if (! $response->successful()) {
-                throw new \RuntimeException(
-                    'AI xizmati xatosi: '.($response->json('error.message') ?? $response->body())
+        foreach ($candidates as $candidate) {
+            foreach ($models as $model) {
+                $response = Http::timeout(180)->post(
+                    "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$candidate['key']}",
+                    [
+                        'contents' => [
+                            ['parts' => [['text' => $prompt]]],
+                        ],
+                        'generationConfig' => [
+                            'response_mime_type' => 'application/json',
+                            // Past temperatura — faktik aniqlik ijodkorlikdan muhimroq
+                            // (o'ylab topilgan sana/statistika eng og'ir xato).
+                            'temperature' => 0.55,
+                            // 9 ta boy slayd + 6 bosqich + 30 test savoli 16k'ga sig'may,
+                            // javob yarim kesilib qolardi (finishReason: MAX_TOKENS).
+                            'maxOutputTokens' => 32768,
+                        ],
+                    ]
                 );
+
+                if ($response->status() === 429) {
+                    // Shu kalitning kvotasi tugagan — keyingi model, keyin
+                    // keyingi kalit sinaladi.
+                    $lastError = 'quota';
+
+                    continue;
+                }
+
+                if (! $response->successful()) {
+                    throw new \RuntimeException(
+                        'AI xizmati xatosi: '.($response->json('error.message') ?? $response->body())
+                    );
+                }
+
+                $text = $response->json('candidates.0.content.parts.0.text');
+
+                if (! $text) {
+                    $finishReason = $response->json('candidates.0.finishReason');
+                    throw new \RuntimeException(
+                        "AI bo'sh javob qaytardi (finishReason: {$finishReason}). Qayta urinib ko'ring."
+                    );
+                }
+
+                $this->lastUsedModel = $model;
+                $this->lastUsage = $response->json('usageMetadata');
+                $this->lastKeySource = $candidate['source'];
+
+                return json_decode($text, true);
             }
-
-            $text = $response->json('candidates.0.content.parts.0.text');
-
-            if (! $text) {
-                $finishReason = $response->json('candidates.0.finishReason');
-                throw new \RuntimeException(
-                    "AI bo'sh javob qaytardi (finishReason: {$finishReason}). Qayta urinib ko'ring."
-                );
-            }
-
-            return json_decode($text, true);
         }
 
         if ($lastError === 'quota') {
             throw new \RuntimeException(
-                "AI xizmatining bugungi bepul limiti tugadi. Ertaga qayta urinib ko'ring yoki to'lovli API kalitini ulang."
+                "AI xizmatining bugungi bepul limiti tugadi (barcha ulangan kalitlar). Ertaga qayta urinib ko'ring yoki yangi API kalit ulang."
             );
         }
 

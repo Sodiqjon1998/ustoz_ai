@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiUsageLog;
 use App\Models\Plan;
 use App\Models\User;
 use App\Services\Admin\TeacherAccountService;
@@ -11,6 +12,15 @@ use Illuminate\Support\Facades\DB;
 
 class TeacherController extends Controller
 {
+    /**
+     * Gemini'ning tekin rejasidagi kunlik so'rov limiti — Google'ning o'zi
+     * qaytargan xato xabaridan tasdiqlangan ("limit: 20, model: gemini-3.6-flash",
+     * 2026-08-01). Model yoki Google siyosati o'zgarsa bu ham yangilanishi kerak.
+     * Shaxsiy kaliti pullik/kengroq bo'lgan o'qituvchi uchun bu foiz shunchaki
+     * taxminiy ko'rsatkich bo'lib qoladi.
+     */
+    public const GEMINI_FREE_DAILY_LIMIT = 20;
+
     public function index(Request $request)
     {
         $data = $request->validate([
@@ -34,6 +44,17 @@ class TeacherController extends Controller
             ->paginate(20, [
                 'id', 'full_name', 'phone', 'teacher_code', 'status', 'school', 'region', 'created_at',
             ]);
+
+        $usageCounts = AiUsageLog::where('provider', 'gemini')
+            ->whereDate('created_at', now())
+            ->whereIn('user_id', collect($teachers->items())->pluck('id'))
+            ->selectRaw('user_id, count(*) as cnt')
+            ->groupBy('user_id')
+            ->pluck('cnt', 'user_id');
+
+        foreach ($teachers as $teacher) {
+            $teacher->setAttribute('gemini_usage_today', $this->usagePercent((int) ($usageCounts[$teacher->id] ?? 0)));
+        }
 
         return response()->json([
             'data' => $teachers->items(),
@@ -184,14 +205,19 @@ class TeacherController extends Controller
     /**
      * O'qituvchining shaxsiy Gemini kalitini o'rnatish/o'chirish — shundan
      * keyin uning darslari umumiy kvotaga emas, shu kalitga sarflanadi.
+     * "slot" — 1 (asosiy) yoki 2 (zaxira, birinchisi tugasa avtomatik
+     * ishga tushadi). Berilmasa 1 deb olinadi.
      */
     public function setGeminiKey(Request $request, User $teacher)
     {
         $data = $request->validate([
             'gemini_api_key' => ['nullable', 'string', 'min:10', 'max:200'],
+            'slot' => ['nullable', 'integer', 'in:1,2'],
         ]);
 
-        $teacher->forceFill(['gemini_api_key' => $data['gemini_api_key'] ?: null])->save();
+        $field = (int) ($data['slot'] ?? 1) === 2 ? 'gemini_api_key_2' : 'gemini_api_key';
+
+        $teacher->forceFill([$field => $data['gemini_api_key'] ?: null])->save();
 
         return response()->json(['data' => $this->present($teacher)]);
     }
@@ -215,6 +241,14 @@ class TeacherController extends Controller
             'total_paid_uzs' => (int) $teacher->payments()->where('status', 'paid')->sum('amount_uzs'),
             'gemini_api_key_set' => (bool) $teacher->gemini_api_key,
             'gemini_api_key_masked' => $teacher->gemini_api_key ? $this->mask($teacher->gemini_api_key) : null,
+            'gemini_api_key_2_set' => (bool) $teacher->gemini_api_key_2,
+            'gemini_api_key_2_masked' => $teacher->gemini_api_key_2 ? $this->mask($teacher->gemini_api_key_2) : null,
+            'gemini_usage_today' => $this->usagePercent(
+                AiUsageLog::where('user_id', $teacher->id)
+                    ->where('provider', 'gemini')
+                    ->whereDate('created_at', now())
+                    ->count()
+            ),
             'subscription' => $latestSubscription ? [
                 'plan' => $latestSubscription->plan->name,
                 'status' => $latestSubscription->status,
@@ -226,6 +260,15 @@ class TeacherController extends Controller
                 'generations_used' => $latestSubscription->generations_used,
                 'generation_limit' => $latestSubscription->plan->generation_limit,
             ] : null,
+        ];
+    }
+
+    private function usagePercent(int $count): array
+    {
+        return [
+            'count' => $count,
+            'limit' => self::GEMINI_FREE_DAILY_LIMIT,
+            'percent' => min(100, (int) round($count / self::GEMINI_FREE_DAILY_LIMIT * 100)),
         ];
     }
 

@@ -6,6 +6,8 @@ import { buildProseSlide } from './layouts/prose.js'
 import { buildChartSlide } from './layouts/chart.js'
 import { buildProcessSlide } from './layouts/process.js'
 import { buildCompareSlide } from './layouts/compare.js'
+import { buildCardsSlide } from './layouts/cards.js'
+import { buildCycleSlide } from './layouts/cycle.js'
 
 // "title" — sarlavha slaydi. Qolganlari Gemini har bir kontent slaydi uchun
 // mazmuniga qarab tanlaydigan uslublar:
@@ -13,6 +15,8 @@ import { buildCompareSlide } from './layouts/compare.js'
 //   chart         — haqiqiy raqamli ma'lumot bo'lsa, ustunli/doiraviy diagramma
 //   process       — bosqichma-bosqich jarayon diagrammasi
 //   compare       — ikki ustunli taqqoslash paneli
+//   cards         — tushuncha kartochkalari to'ri (atama + ta'rif)
+//   cycle         — aylanma jarayon diagrammasi (takrorlanuvchi halqa)
 const layoutBuilders = {
   title: buildTitleSlide,
   bullets: buildBulletsSlide,
@@ -20,6 +24,8 @@ const layoutBuilders = {
   chart: buildChartSlide,
   process: buildProcessSlide,
   compare: buildCompareSlide,
+  cards: buildCardsSlide,
+  cycle: buildCycleSlide,
 }
 
 /**

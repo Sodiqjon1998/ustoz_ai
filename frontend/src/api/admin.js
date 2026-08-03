@@ -50,8 +50,8 @@ export async function deleteTeacher(id) {
   return data.data
 }
 
-export async function setTeacherGeminiKey(id, geminiApiKey) {
-  const { data } = await client.post(`/admin/teachers/${id}/gemini-key`, { gemini_api_key: geminiApiKey })
+export async function setTeacherGeminiKey(id, geminiApiKey, slot = 1) {
+  const { data } = await client.post(`/admin/teachers/${id}/gemini-key`, { gemini_api_key: geminiApiKey, slot })
   return data.data
 }
 

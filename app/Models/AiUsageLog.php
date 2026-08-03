@@ -9,7 +9,7 @@ class AiUsageLog extends Model
     const UPDATED_AT = null;
 
     protected $fillable = [
-        'user_id', 'lesson_id', 'material_set_id', 'provider', 'model', 'step',
+        'user_id', 'lesson_id', 'material_set_id', 'provider', 'key_source', 'model', 'step',
         'input_tokens', 'output_tokens', 'cached_tokens', 'cost_usd',
         'latency_ms', 'cache_hit',
     ];
