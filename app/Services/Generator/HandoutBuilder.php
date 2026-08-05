@@ -18,11 +18,27 @@ namespace App\Services\Generator;
  */
 class HandoutBuilder
 {
-    public function build(string $topic, string $subjectName, string $themeKey, int $grade, int $duration, array $content): array
+    /**
+     * Har bir sinf bandi uchun ruxsat etilgan o'yin turlari. Frontend wizard
+     * shu ro'yxatga mos checkbox ko'rsatadi; bu yerdagi filtr — himoya qatlami
+     * (frontend chetlab o'tilsa ham, boshlang'ich sinfga krossvord tushmasin).
+     */
+    public const PRIMARY_GAMES = ['anagram', 'matching', 'wordsearch', 'sequence', 'flashcard', 'compare', 'grammar'];
+
+    public const SENIOR_GAMES = ['matching', 'wordsearch', 'sequence', 'crossword', 'truefalse', 'flashcard', 'compare', 'grammar'];
+
+    public function build(string $topic, string $subjectName, string $themeKey, int $grade, int $duration, array $content, array $selectedGames = []): array
     {
         $terms = $this->cleanTerms((array) ($content['key_terms'] ?? []));
+        $phases = $this->cleanPhases((array) ($content['phases'] ?? []));
+        $slides = (array) ($content['slides'] ?? []);
+        $grammarRows = (array) ($content['grammar_table'] ?? []);
 
-        $games = $this->buildGames($terms, (array) ($content['test_questions'] ?? []));
+        $gradeBand = $grade <= 4 ? 'primary' : 'senior';
+        $allowed = $gradeBand === 'primary' ? self::PRIMARY_GAMES : self::SENIOR_GAMES;
+        $selectedTypes = empty($selectedGames) ? $allowed : array_values(array_intersect($allowed, $selectedGames));
+
+        $games = $this->buildGames($terms, $phases, $slides, $grammarRows, $selectedTypes);
 
         return [
             'title' => $topic,
@@ -30,7 +46,7 @@ class HandoutBuilder
             'theme' => $themeKey,
             'grade' => $grade,
             'duration' => $duration,
-            'grade_band' => $grade <= 4 ? 'primary' : 'senior',
+            'grade_band' => $gradeBand,
             'objective' => (string) ($content['objective_main'] ?? ''),
             'games' => $games,
             // O'qituvchi uchun javoblar kaliti — o'yinlarning yechimi.
@@ -39,7 +55,7 @@ class HandoutBuilder
     }
 
     /**
-     * @return array<int, array{term: string, upper: string, clue: string}>
+     * @return array<int, array{term: string, upper: string, clue: string, translation: string}>
      */
     private function cleanTerms(array $raw): array
     {
@@ -53,6 +69,7 @@ class HandoutBuilder
 
             $term = trim((string) $t['term']);
             $clue = trim((string) ($t['clue'] ?? ''));
+            $translation = trim((string) ($t['translation'] ?? ''));
 
             if ($clue === '' || ! preg_match('/^\p{L}{3,12}$/u', $term)) {
                 continue;
@@ -64,7 +81,7 @@ class HandoutBuilder
             }
             $seen[$upper] = true;
 
-            $terms[] = ['term' => $term, 'upper' => $upper, 'clue' => $clue];
+            $terms[] = ['term' => $term, 'upper' => $upper, 'clue' => $clue, 'translation' => $translation];
         }
 
         return $terms;
@@ -72,9 +89,10 @@ class HandoutBuilder
 
     /**
      * O'yinlar to'plami. Har bir o'yin uchun yetarli atama bo'lmasa, u
-     * o'yin o'tkazib yuboriladi (chala o'yin ko'rsatilmaydi).
+     * o'yin o'tkazib yuboriladi (chala o'yin ko'rsatilmaydi). `$selectedTypes`
+     * — o'qituvchi (yoki sinf bandi) tanlagan turlar, faqat shular quriladi.
      */
-    private function buildGames(array $terms, array $questions): array
+    private function buildGames(array $terms, array $phases, array $slides, array $grammarRows, array $selectedTypes): array
     {
         $games = [];
 
@@ -83,27 +101,72 @@ class HandoutBuilder
         // farqni ko'rmaydi, chalkashlik bo'lmaydi).
         mt_srand(crc32(implode('|', array_column($terms, 'upper'))) & 0x7fffffff);
 
-        if (count($terms) >= 4) {
+        if (in_array('anagram', $selectedTypes, true) && count($terms) >= 4) {
             $games[] = $this->anagramGame(array_slice($terms, 0, 6));
         }
 
-        if (count($terms) >= 4) {
+        if (in_array('matching', $selectedTypes, true) && count($terms) >= 4) {
             $games[] = $this->matchingGame(array_slice($terms, 0, 6));
         }
 
-        $wordSearch = $this->wordSearchGame($terms);
-        if ($wordSearch !== null) {
-            $games[] = $wordSearch;
+        if (in_array('wordsearch', $selectedTypes, true)) {
+            $wordSearch = $this->wordSearchGame($terms);
+            if ($wordSearch !== null) {
+                $games[] = $wordSearch;
+            }
         }
 
-        $crossword = $this->crosswordGame($terms);
-        if ($crossword !== null) {
-            $games[] = $crossword;
+        if (in_array('crossword', $selectedTypes, true)) {
+            $crossword = $this->crosswordGame($terms);
+            if ($crossword !== null) {
+                $games[] = $crossword;
+            }
+        }
+
+        if (in_array('sequence', $selectedTypes, true) && count($phases) >= 3) {
+            $games[] = $this->sequenceGame($phases);
+        }
+
+        if (in_array('truefalse', $selectedTypes, true) && count($terms) >= 6) {
+            $games[] = $this->trueFalseGame($terms);
+        }
+
+        if (in_array('flashcard', $selectedTypes, true) && count($terms) >= 4) {
+            $games[] = $this->flashcardBlock($terms);
+        }
+
+        if (in_array('compare', $selectedTypes, true)) {
+            $compare = $this->compareBlock($slides);
+            if ($compare !== null) {
+                $games[] = $compare;
+            }
+        }
+
+        if (in_array('grammar', $selectedTypes, true)) {
+            $grammar = $this->grammarBlock($grammarRows);
+            if ($grammar !== null) {
+                $games[] = $grammar;
+            }
         }
 
         mt_srand();
 
         return $games;
+    }
+
+    /** @return array<int, string> */
+    private function cleanPhases(array $raw): array
+    {
+        $names = [];
+
+        foreach ($raw as $p) {
+            $name = trim((string) (is_array($p) ? ($p['name'] ?? '') : ''));
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     // ---- 1) ANAGRAMMA -----------------------------------------------------
@@ -500,6 +563,198 @@ class HandoutBuilder
         ];
     }
 
+    // ---- 5) TO'G'RI TARTIB (sequencing) ------------------------------------
+
+    /**
+     * Dars bosqichlari nomlarini (allaqachon Gemini tomonidan to'g'ri
+     * pedagogik tartibda generatsiya qilingan, konspektda ham ishlatiladigan
+     * `phases`) aralashtirib, o'quvchidan asl tartibni tiklashni so'raydi.
+     * Yangi AI matni yo'q — faqat mavjud bosqich nomlarining tartibi o'zgaradi.
+     */
+    private function sequenceGame(array $phases): array
+    {
+        $count = min(6, count($phases));
+        $selected = array_slice($phases, 0, $count);
+
+        $order = range(0, $count - 1);
+        $this->shuffleInPlace($order);
+
+        // Tasodifan asl tartibda chiqib qolsa, o'yin ma'nosiz bo'ladi.
+        if ($count > 1 && $order === range(0, $count - 1)) {
+            [$order[0], $order[1]] = [$order[1], $order[0]];
+        }
+
+        $items = [];
+        foreach ($order as $displayIdx => $origIdx) {
+            $items[] = [
+                'label' => $this->letterLabel($displayIdx),
+                'text' => $selected[$origIdx],
+                'correct_order' => $origIdx + 1,
+            ];
+        }
+
+        return [
+            'type' => 'sequence',
+            'title' => "To'g'ri tartib",
+            'instruction' => "Dars bosqichlari aralashtirilgan. To'g'ri ketma-ketlikni belgilab, har biri yoniga tartib raqamini (1, 2, 3...) yoz.",
+            'items' => $items,
+        ];
+    }
+
+    // ---- 6) TO'G'RI YOKI NOTO'G'RI (true/false) ----------------------------
+
+    /**
+     * Atama+ta'rif juftliklarining bir qismini ATAYLAB boshqa atamaning
+     * ta'rifi bilan aralashtirib, o'quvchidan "to'g'ri/noto'g'ri" ekanini
+     * aniqlashni so'raydi. Yangi fakt o'ylab topilmaydi — faqat mavjud,
+     * tekshirilgan term/clue juftliklari qayta kombinatsiyalanadi.
+     */
+    private function trueFalseGame(array $terms): array
+    {
+        $pool = array_slice($terms, 0, min(8, count($terms)));
+        $n = count($pool);
+        $half = intdiv($n, 2);
+
+        $order = range(0, $n - 1);
+        $this->shuffleInPlace($order);
+
+        $statements = [];
+        foreach ($order as $i => $termIdx) {
+            $term = $pool[$termIdx];
+            $isTrue = $i < $half;
+
+            if ($isTrue) {
+                $clue = $term['clue'];
+            } else {
+                // Boshqa (o'zidan farqli) atamaning ta'rifi — soxta fakt emas,
+                // shunchaki noto'g'ri juftlik.
+                $otherIdx = ($termIdx + 1) % $n;
+                $clue = $pool[$otherIdx]['clue'];
+            }
+
+            $statements[] = ['term' => $term['upper'], 'clue' => $clue, 'answer' => $isTrue];
+        }
+
+        $this->shuffleInPlace($statements);
+
+        foreach ($statements as $i => &$s) {
+            $s['number'] = $i + 1;
+        }
+        unset($s);
+
+        return [
+            'type' => 'truefalse',
+            'title' => "To'g'ri yoki noto'g'ri?",
+            'instruction' => "Har bir juftlikni o'qi. Atama va ta'rif to'g'ri mos kelsa \"T\", mos kelmasa \"N\" deb belgila.",
+            'items' => $statements,
+        ];
+    }
+
+    // ---- 7) KARTOCHKALAR (flashcard) ---------------------------------------
+
+    /**
+     * Kesib olinadigan ikki tomonlama kartochkalar: old tomonda atama, orqa
+     * tomonda — chet tili darsida tarjima (masalan "apple" → "olma"), boshqa
+     * fanlarda ta'rif. Ikkala tomon PDF'da bir xil to'r (qator-ustun)
+     * tartibida chiziladi — duplex chop etilganda old/orqa mos tushishi uchun.
+     */
+    private function flashcardBlock(array $terms): array
+    {
+        $pool = array_slice($terms, 0, min(8, count($terms)));
+        $isTranslation = count(array_filter($pool, fn ($t) => $t['translation'] !== '')) > 0;
+
+        return [
+            'type' => 'flashcard',
+            'title' => 'Kartochkalar',
+            'instruction' => $isTranslation
+                ? "Sahifalarni kesib, ikki tomonlama kartochka yasang: bir tomonda so'z, ikkinchi tomonda tarjimasi."
+                : "Sahifalarni kesib, ikki tomonlama kartochka yasang: bir tomonda atama, ikkinchi tomonda ta'rif.",
+            'items' => array_map(fn ($t) => [
+                'term' => $t['upper'],
+                'clue' => $t['translation'] !== '' ? $t['translation'] : $t['clue'],
+            ], $pool),
+        ];
+    }
+
+    // ---- 8) TAQQOSLASH VARAG'I (compare) -----------------------------------
+
+    /**
+     * Slaydlar ichidan birinchi "compare" tipdagisini topib, uning
+     * left/right ma'lumotini ma'lumotnoma varag'i sifatida qaytaradi. Yangi
+     * fakt so'ralmaydi — Gemini/curated tomonidan PPTX uchun allaqachon
+     * generatsiya qilingan compare ma'lumoti qayta ishlatiladi. Mos slayd
+     * topilmasa (mavzu taqqoslashga mos kelmasa), null qaytaradi.
+     */
+    private function compareBlock(array $slides): ?array
+    {
+        foreach ($slides as $slide) {
+            if (! is_array($slide) || ($slide['body']['type'] ?? null) !== 'compare') {
+                continue;
+            }
+
+            $compare = (array) ($slide['compare'] ?? []);
+            $left = (array) ($compare['left'] ?? []);
+            $right = (array) ($compare['right'] ?? []);
+
+            $leftItems = array_values(array_filter((array) ($left['items'] ?? [])));
+            $rightItems = array_values(array_filter((array) ($right['items'] ?? [])));
+
+            if (empty($leftItems) || empty($rightItems)) {
+                continue;
+            }
+
+            return [
+                'type' => 'compare',
+                'title' => 'Taqqoslash varag\'i',
+                'instruction' => 'Ikki tomonni solishtiring.',
+                'left' => ['heading' => (string) ($left['heading'] ?? ''), 'items' => $leftItems],
+                'right' => ['heading' => (string) ($right['heading'] ?? ''), 'items' => $rightItems],
+            ];
+        }
+
+        return null;
+    }
+
+    // ---- 9) GRAMMATIKA JADVALI (grammar) -----------------------------------
+
+    /**
+     * Chet tili darsi uchun (Gemini/curated tomonidan mavzu grammatik bo'lsa
+     * to'ldirilgan) grammatika jadvali qatorlarini o'z holicha qaytaradi.
+     * Mavzu grammatik emas bo'lsa (masalan lug'at mavzusi) qatorlar bo'sh
+     * keladi — bu holda blok butunlay o'tkazib yuboriladi.
+     */
+    private function grammarBlock(array $rows): ?array
+    {
+        $clean = [];
+
+        foreach ($rows as $r) {
+            if (! is_array($r)) {
+                continue;
+            }
+
+            $label = trim((string) ($r['label'] ?? ''));
+            $structure = trim((string) ($r['structure'] ?? ''));
+            $example = trim((string) ($r['example'] ?? ''));
+
+            if ($label === '' || $structure === '' || $example === '') {
+                continue;
+            }
+
+            $clean[] = ['label' => $label, 'structure' => $structure, 'example' => $example];
+        }
+
+        if (count($clean) < 2) {
+            return null;
+        }
+
+        return [
+            'type' => 'grammar',
+            'title' => 'Grammatika jadvali',
+            'instruction' => 'Qoidani va misolni o\'rganib chiq.',
+            'rows' => $clean,
+        ];
+    }
+
     // ---- Javoblar kaliti (o'qituvchi uchun) --------------------------------
 
     private function buildAnswerKey(array $games): array
@@ -529,6 +784,18 @@ class HandoutBuilder
                 }
                 foreach ($game['down'] as $d) {
                     $lines[] = "{$d['number']}. {$d['answer']} (vertikal)";
+                }
+                $key[] = ['title' => $game['title'], 'lines' => $lines];
+            } elseif ($game['type'] === 'sequence') {
+                $lines = [];
+                foreach ($game['items'] as $it) {
+                    $lines[] = "{$it['label']} ({$it['correct_order']})";
+                }
+                $key[] = ['title' => $game['title'], 'lines' => $lines];
+            } elseif ($game['type'] === 'truefalse') {
+                $lines = [];
+                foreach ($game['items'] as $it) {
+                    $lines[] = "{$it['number']}. ".($it['answer'] ? 'T' : 'N');
                 }
                 $key[] = ['title' => $game['title'], 'lines' => $lines];
             }

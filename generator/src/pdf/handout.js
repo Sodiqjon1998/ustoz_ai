@@ -312,17 +312,183 @@ function renderCrossword(game, pal, color) {
   ]
 }
 
+// "To'g'ri tartib" — aralashgan bosqichlar ro'yxati, har biriga qutili raqam joyi.
+function renderSequence(game, pal, color) {
+  const rows = game.items.map((it) => ({
+    columns: [
+      // Chapdan chip: harf yorlig'i (A/B/C...).
+      {
+        width: 24,
+        table: {
+          widths: [20],
+          body: [[{ text: it.label, alignment: 'center', bold: true, fontSize: 10, color: '#FFFFFF', fillColor: color, margin: [0, 2, 0, 2] }]],
+        },
+        layout: 'noBorders',
+      },
+      // Bosqich matni.
+      { width: '*', text: it.text, fontSize: 11, color: pal.ink, margin: [4, 3, 4, 0] },
+      // O'ngdan bo'sh qutili tartib raqami uchun joy.
+      {
+        width: 30,
+        table: {
+          widths: [24],
+          heights: [16],
+          body: [[{ text: '', fillColor: null }]],
+        },
+        layout: gridLayout(color),
+      },
+    ],
+    margin: [0, 0, 0, 8],
+  }))
+
+  return rows
+}
+
+// "To'g'ri yoki noto'g'ri" — atama+ta'rif juftliklari, har biri yoniga T/N kataklari.
+function renderTrueFalse(game, pal, color) {
+  const rows = game.items.map((it) => ({
+    columns: [
+      { width: 20, text: `${it.number}.`, bold: true, fontSize: 11, color: pal.ink, margin: [0, 4, 0, 0] },
+      {
+        width: '*',
+        stack: [
+          { text: it.term, bold: true, fontSize: 11, color: pal.chipInk, fillColor: pal.chip, margin: [4, 2, 4, 2] },
+          { text: it.clue, fontSize: 10, color: pal.ink, margin: [0, 3, 0, 0] },
+        ],
+      },
+      {
+        width: 60,
+        table: {
+          widths: [22, 22],
+          heights: [18],
+          body: [[
+            { text: 'T', alignment: 'center', bold: true, fontSize: 11, color },
+            { text: 'N', alignment: 'center', bold: true, fontSize: 11, color },
+          ]],
+        },
+        layout: gridLayout(color),
+      },
+    ],
+    columnGap: 8,
+    margin: [0, 0, 0, 8],
+  }))
+
+  return rows
+}
+
+// --- kartochkalar (flashcard) --------------------------------------------------
+
+const CARD_H = 78
+
+function cardLayout(lineColor, fill) {
+  return {
+    hLineWidth: () => 1,
+    vLineWidth: () => 1,
+    hLineColor: () => lineColor,
+    vLineColor: () => lineColor,
+    paddingLeft: () => 6,
+    paddingRight: () => 6,
+    paddingTop: () => 6,
+    paddingBottom: () => 6,
+    fillColor: () => fill,
+  }
+}
+
+// Old (term) va orqa (clue) tomonlar bir xil 2-ustunli to'r tartibida
+// chiziladi — duplex chop etilganda kartalar mos tushishi uchun.
+function cardGrid(items, pal, color, side) {
+  const rows = []
+  for (let i = 0; i < items.length; i += 2) {
+    const pair = [items[i], items[i + 1]]
+    rows.push(
+      pair.map((it) => {
+        if (!it) return { text: '', border: [false, false, false, false] }
+        return side === 'front'
+          ? { text: it.term, bold: true, fontSize: 15, alignment: 'center', color: pal.ink, margin: [4, CARD_H / 2 - 12, 4, 0] }
+          : { text: it.clue, fontSize: 9.5, alignment: 'center', color: pal.clue, margin: [6, CARD_H / 2 - 16, 6, 0] }
+      }),
+    )
+  }
+
+  return {
+    table: { widths: ['*', '*'], heights: CARD_H, body: rows },
+    layout: cardLayout(color, pal.card),
+  }
+}
+
+function renderFlashcard(game, pal, color) {
+  return [
+    { text: 'OLD TOMON', bold: true, fontSize: 9, color: pal.clue, margin: [0, 0, 0, 4] },
+    cardGrid(game.items, pal, color, 'front'),
+    { text: '', pageBreak: 'before' },
+    { text: 'ORQA TOMON', bold: true, fontSize: 9, color: pal.clue, margin: [0, 0, 0, 4] },
+    cardGrid(game.items, pal, color, 'back'),
+  ]
+}
+
+// --- taqqoslash varag'i (compare) -----------------------------------------------
+
+function renderCompareSheet(game, pal, color) {
+  const column = (side, headColor) => ({
+    width: '48%',
+    stack: [
+      {
+        table: { widths: ['*'], body: [[{ text: side.heading ?? '', bold: true, fontSize: 11, color: '#FFFFFF', fillColor: headColor, margin: [8, 5, 8, 5] }]] },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 6],
+      },
+      { ul: side.items ?? [], fontSize: 10.5, color: pal.ink, margin: [0, 0, 0, 0] },
+    ],
+  })
+
+  return [
+    {
+      columns: [column(game.left, color), { width: '4%', text: '' }, column(game.right, pal.block)],
+    },
+  ]
+}
+
+// --- grammatika jadvali (grammar) -----------------------------------------------
+
+function renderGrammarTable(game, pal, color) {
+  const header = ['Shakl', 'Tuzilma', 'Misol'].map((h) => ({
+    text: h,
+    bold: true,
+    fontSize: 10,
+    color: '#FFFFFF',
+    fillColor: color,
+    margin: [6, 5, 6, 5],
+  }))
+
+  const rows = game.rows.map((r) => [
+    { text: r.label, bold: true, fontSize: 10, color: pal.ink, margin: [6, 6, 6, 6] },
+    { text: r.structure, fontSize: 10, color: pal.ink, margin: [6, 6, 6, 6] },
+    { text: r.example, italics: true, fontSize: 10, color: pal.clue, margin: [6, 6, 6, 6] },
+  ])
+
+  return [
+    {
+      table: { widths: ['22%', '33%', '45%'], body: [header, ...rows] },
+      layout: gridLayout(pal.line),
+    },
+  ]
+}
+
 function renderGame(index, game, pal) {
   const color = pal.headers[index % pal.headers.length]
   const content = []
 
   // So'z izlash/krossvord grid'lari katta va `columns` ichidagi jadval
   // uchun `unbreakable` ishonchli ishlamaydi (grid baribir sahifa
-  // chegarasida bo'linib qolgan edi). Shu sabab bu ikkalasi doim yangi
+  // chegarasida bo'linib qolgan edi). Shu sabab bu turlar doim yangi
   // sahifadan boshlanadi — alohida bo'sh pageBreak belgisi bilan (xuddi
   // renderAnswerKey'dagi kabi — bitta tugunga unbreakable+pageBreak'ni
-  // birga qo'yish e'tiborga olinmay qolgan edi).
-  if (index > 0 && (game.type === 'wordsearch' || game.type === 'crossword')) {
+  // birga qo'yish e'tiborga olinmay qolgan edi). Kartochkalar/taqqoslash/
+  // grammatika ham shu ro'yxatda — ular oldingi blokning oxiri bilan bir
+  // sahifada qisilib, chala-chulpa ko'rinib qolgan edi (masalan Kartochkalar
+  // orqa tomoni bilan Taqqoslash varag'i bitta betda tiqilishib qolardi).
+  const forceNewPage = ['wordsearch', 'crossword', 'flashcard', 'compare', 'grammar']
+  if (index > 0 && forceNewPage.includes(game.type)) {
     content.push({ text: '', pageBreak: 'before' })
   }
 
@@ -332,6 +498,11 @@ function renderGame(index, game, pal) {
   else if (game.type === 'matching') content.push(...renderMatching(game, pal, color))
   else if (game.type === 'wordsearch') content.push(...renderWordSearch(game, pal, color))
   else if (game.type === 'crossword') content.push(...renderCrossword(game, pal, color))
+  else if (game.type === 'sequence') content.push(...renderSequence(game, pal, color))
+  else if (game.type === 'truefalse') content.push(...renderTrueFalse(game, pal, color))
+  else if (game.type === 'flashcard') content.push(...renderFlashcard(game, pal, color))
+  else if (game.type === 'compare') content.push(...renderCompareSheet(game, pal, color))
+  else if (game.type === 'grammar') content.push(...renderGrammarTable(game, pal, color))
 
   return content
 }

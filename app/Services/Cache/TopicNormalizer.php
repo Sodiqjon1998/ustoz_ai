@@ -55,9 +55,21 @@ class TopicNormalizer
         int $duration,
         string $language,
         int $variant = 1,
+        array $games = [],
     ): string {
+        $gamesSignature = implode(',', $this->sortedGames($games));
+
         return hash('sha256', implode('|', [
-            $subjectId, $grade, $topicNormalized, $duration, $language, $variant,
+            $subjectId, $grade, $topicNormalized, $duration, $language, $variant, $gamesSignature,
         ]));
+    }
+
+    /** @return array<int, string> */
+    private function sortedGames(array $games): array
+    {
+        $games = array_values(array_unique(array_map('strval', $games)));
+        sort($games);
+
+        return $games;
     }
 }

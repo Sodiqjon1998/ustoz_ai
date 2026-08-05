@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Sparkles } from 'lucide-react'
 import Button from '../ui/Button'
@@ -7,14 +7,16 @@ import SubjectPicker from './SubjectPicker'
 import GradePicker from './GradePicker'
 import TopicInput from './TopicInput'
 import DurationLanguageStep from './DurationLanguageStep'
+import GameTypePicker, { gamesFor } from './GameTypePicker'
 
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 5
 
 const STEP_TITLES = [
   'Qaysi fandan dars?',
   'Qaysi sinf?',
   'Dars mavzusi',
   'Davomiyligi va til',
+  "Tarqatmada qanday o'yinlar bo'lsin?",
 ]
 
 export default function LessonWizard({ subjects, onSubmit }) {
@@ -24,13 +26,25 @@ export default function LessonWizard({ subjects, onSubmit }) {
   const [topic, setTopic] = useState('')
   const [duration, setDuration] = useState(45)
   const [language, setLanguage] = useState('uz')
+  const [games, setGames] = useState([])
   const [direction, setDirection] = useState(1)
+
+  const subjectName = subjects.find((s) => s.id === Number(subjectId))?.name_uz ?? null
+
+  // Grade yoki fan o'zgarganda ro'yxat o'zgarishi mumkin (band yoki chet
+  // tili maxsus tanlovlari); default hammasini belgilaymiz. Foydalanuvchi
+  // keyin qadamga kelganda o'zi kesib ko'rsatishi mumkin.
+  useEffect(() => {
+    if (grade == null) return
+    setGames(gamesFor(grade, subjectName).map((g) => g.key))
+  }, [grade, subjectName])
 
   const canNext =
     (step === 1 && subjectId != null) ||
     (step === 2 && grade != null) ||
     (step === 3 && topic.trim().length >= 2) ||
-    step === 4
+    step === 4 ||
+    (step === 5 && games.length > 0)
 
   function goNext() {
     if (!canNext) return
@@ -41,6 +55,7 @@ export default function LessonWizard({ subjects, onSubmit }) {
         topic: topic.trim(),
         duration: Number(duration),
         language,
+        games,
       })
       return
     }
@@ -109,6 +124,9 @@ export default function LessonWizard({ subjects, onSubmit }) {
               onDuration={setDuration}
               onLanguage={setLanguage}
             />
+          )}
+          {step === 5 && (
+            <GameTypePicker grade={grade} subjectName={subjectName} value={games} onChange={setGames} />
           )}
         </motion.div>
       </div>

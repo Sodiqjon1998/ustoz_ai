@@ -52,7 +52,16 @@ class LessonController extends Controller
             'topic' => ['required', 'string', 'min:2', 'max:200'],
             'duration' => ['required', 'integer', 'in:45,80'],
             'language' => ['required', 'string', 'in:uz,ru,en'],
+            'games' => ['required', 'array', 'min:1'],
+            'games.*' => ['string', 'in:anagram,matching,wordsearch,sequence,crossword,truefalse,flashcard,compare,grammar'],
         ]);
+
+        // Frontend sinf bandiga mos ro'yxat beradi, lekin himoya qatlami sifatida
+        // bu yerda ham qayta tekshiramiz (masalan boshlang'ich sinfga krossvord
+        // so'ralib qolmasin).
+        $gradeBand = $data['grade'] <= 4 ? 'primary' : 'senior';
+        $allowedGames = $gradeBand === 'primary' ? HandoutBuilder::PRIMARY_GAMES : HandoutBuilder::SENIOR_GAMES;
+        $games = array_values(array_intersect($allowedGames, $data['games']));
 
         $normalized = $normalizer->normalize($data['topic'], $data['language']);
         $cacheKey = $normalizer->cacheKey(
@@ -61,6 +70,8 @@ class LessonController extends Controller
             $normalized,
             $data['duration'],
             $data['language'],
+            1,
+            $games,
         );
 
         $materialSet = MaterialSet::where('cache_key', $cacheKey)
@@ -199,6 +210,7 @@ class LessonController extends Controller
                     $data['grade'],
                     $data['duration'],
                     $content,
+                    $games,
                 );
 
                 $render = $generatorClient->renderPdfHandout($handout);

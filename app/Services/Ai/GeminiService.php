@@ -82,6 +82,14 @@ class GeminiService
     private const SLIDE_TYPES = ['bullets', 'prose', 'process', 'compare', 'chart', 'cards', 'cycle'];
 
     /**
+     * Chet tili fanlari — bularda key_terms so'zi tanlangan "dars tili"ga
+     * qaramay chet tilining o'zida bo'ladi va o'zbekcha tarjimasi ham
+     * so'raladi (tarjima kartochkalari uchun). "Ona tili" bu ro'yxatda YO'Q —
+     * u chet tili emas, tarjima kerak emas.
+     */
+    private const TRANSLATABLE_LANGUAGE_SUBJECTS = ['Ingliz tili', 'Rus tili'];
+
+    /**
      * @return array{
      *     objective_main: string,
      *     lesson_type: string,
@@ -93,6 +101,7 @@ class GeminiService
      *     title_meta: string[],
      *     slides: array<int, array<string, mixed>>,
      *     test_questions: array<int, array{text: string, options: string[], correct_index: int, explanation: string, difficulty: string}>,
+     *     grammar_table: array<int, array{label: string, structure: string, example: string}>,
      * }
      *
      * @throws \RuntimeException
@@ -144,6 +153,7 @@ class GeminiService
         $slides = $this->normalizeSlides((array) ($data['slides'] ?? []), $isCurated);
         $questions = $this->normalizeQuestions((array) ($data['test_questions'] ?? []));
         $keyTerms = $this->normalizeKeyTerms((array) ($data['key_terms'] ?? []));
+        $grammarTable = $this->normalizeGrammarTable((array) ($data['grammar_table'] ?? []));
 
         if (count($phases) === 0 || count($slides) < self::MIN_SLIDES || count($questions) < 10) {
             throw new \RuntimeException("AI javobi to'liq emas (bosqichlar/slaydlar/test savollari yetarli emas). Qayta urinib ko'ring.");
@@ -167,6 +177,7 @@ class GeminiService
             'slides' => $slides,
             'test_questions' => $questions,
             'key_terms' => $keyTerms,
+            'grammar_table' => $grammarTable,
         ];
     }
 
@@ -190,6 +201,7 @@ class GeminiService
 
             $term = trim((string) $t['term']);
             $clue = trim((string) ($t['clue'] ?? ''));
+            $translation = trim((string) ($t['translation'] ?? ''));
 
             // Faqat harflardan iborat bitta so'z (Lotin yoki Kirill), 3-12 harf.
             // Apostrof/probel/chiziqchali atamalar grid o'yinlariga yaramaydi.
@@ -203,10 +215,40 @@ class GeminiService
             }
             $seen[$key] = true;
 
-            $terms[] = ['term' => $term, 'clue' => $clue];
+            $terms[] = ['term' => $term, 'clue' => $clue, 'translation' => $translation];
         }
 
         return array_slice($terms, 0, 10);
+    }
+
+    /**
+     * Grammatika jadvali qatorlarini tozalaydi (faqat chet tili darslarida
+     * so'raladi, va faqat mavzu grammatik bo'lsa Gemini to'ldiradi — aks
+     * holda bo'sh massiv keladi, bu normal holat).
+     *
+     * @return array<int, array{label: string, structure: string, example: string}>
+     */
+    private function normalizeGrammarTable(array $rawRows): array
+    {
+        $rows = [];
+
+        foreach ($rawRows as $r) {
+            if (! is_array($r)) {
+                continue;
+            }
+
+            $label = trim((string) ($r['label'] ?? ''));
+            $structure = trim((string) ($r['structure'] ?? ''));
+            $example = trim((string) ($r['example'] ?? ''));
+
+            if ($label === '' || $structure === '' || $example === '') {
+                continue;
+            }
+
+            $rows[] = ['label' => $label, 'structure' => $structure, 'example' => $example];
+        }
+
+        return array_slice($rows, 0, 6);
     }
 
     private function buildPrompt(
@@ -228,6 +270,24 @@ class GeminiService
         $slideCount = self::REQUEST_SLIDES;
         $totalPages = self::CONTENT_SLIDES + 1;
 
+        $isLanguageSubject = in_array($subjectName, self::TRANSLATABLE_LANGUAGE_SUBJECTS, true);
+
+        $keyTermsExtra = $isLanguageSubject
+            ? "\n   - BU CHET TILI DARSI: \"term\" albatta shu chet tilining o'zidagi so'z bo'lsin (masalan Ingliz tili bo'lsa \"apple\"), tanlangan dars tiliga QARAMAY — bu yerda yuqoridagi \"BARCHA kontent {$languageName} tilida\" qoidasidan MUSTASNO. Qo'shimcha \"translation\" maydoniga shu so'zning ANIQ o'zbekcha tarjimasini yoz (masalan \"olma\") — o'quvchilar uchun tarjima kartochkalari shundan yasaladi, tarjima xato bo'lmasin."
+            : '';
+
+        $keyTermsExample = $isLanguageSubject
+            ? '{"term": "...", "clue": "...", "translation": "..."}'
+            : '{"term": "...", "clue": "..."}';
+
+        $grammarSection = $isLanguageSubject
+            ? "\n\n10. \"grammar_table\" — FAQAT agar \"{$topic}\" mavzusining o'zi grammatik qoida/tuzilma bo'lsa (masalan fe'l zamoni, artikl, sifat darajalari, modal fe'l, gap tuzilishi) to'ldir: 3-6 qator, har biri {\"label\": \"qisqa shakl nomi (masalan 'I / You / We / They' yoki 'Ijobiy gap')\", \"structure\": \"tuzilma/formula (masalan 'Subject + V1')\", \"example\": \"to'liq, grammatik jihatdan to'g'ri gap misoli, {$languageName} tilida\"}. Mavzu grammatik qoida EMAS (masalan so'z boyligi/lug'at, madaniyat mavzusi) bo'lsa — bo'sh massiv \"[]\" qaytar, mos kelmaydigan jadval o'ylab topma."
+            : '';
+
+        $grammarJsonField = $isLanguageSubject
+            ? ",\n  \"grammar_table\": [\n    {\"label\": \"...\", \"structure\": \"...\", \"example\": \"...\"}\n  ]"
+            : '';
+
         return <<<PROMPT
 Sen tajribali, o'quvchilarni qiziqtira oladigan {$subjectName} o'qituvchisisan. {$grade}-sinf o'quvchilari uchun "{$topic}" mavzusida {$duration} daqiqalik bitta darsga to'liq, rasmiy dars ishlanmasi (konspekt) darajasidagi material tayyorla.
 
@@ -242,6 +302,7 @@ Bu materialni haqiqiy o'qituvchi haqiqiy sinfda ishlatadi. Shuning uchun:
 - Har bir tushunchadan keyin DARHOL konkret misol kel — hayotdan olingan yoki fanning o'zidan.
 - {$grade}-sinf o'quvchisi tushunadigan tilda yoz, lekin mazmunni bo'shatib yuborma: o'quvchi darsdan yangi, aniq bilim bilan chiqsin.
 - Mavzuga oid qiziqarli fakt, tarixiy tafsilot yoki amaliy qo'llanishni qo'sh — o'quvchi esda saqlab qoladigan narsa bo'lsin.
+- Faqat "nima" bilan cheklanma — HAR bir asosiy tushuncha uchun "nega shunday" yoki "qanday ishlaydi" darajasida bitta qo'shimcha jumla qo'sh (sabab-oqibat, mexanizm yoki qo'llanish). Ta'rifni takrorlash emas, undan bir qadam chuqurroq bor.
 
 === ANIQLIK — BUZILMASLIGI SHART ===
 - Faqat ROSTLIGIGA ISHONCHING KOMIL bo'lgan ma'lumotni yoz.
@@ -313,7 +374,7 @@ Quyidagi tuzilmani to'ldir:
    DIAGRAMMA/GRAFIK haqida: raqamli diagramma (foiz, ulush, statistika) SO'RALMAYDI va uni yasashga urinma. "Tilda necha foiz uchraydi", "foydalanuvchilarning necha foizi" kabi taxminiy sonlar deyarli har doim noto'g'ri bo'ladi va dars materialini yaroqsiz qiladi. Vizual xilma-xillik "cards", "cycle", "process" va "compare" orqali beriladi — ular son talab qilmaydi.
 
    Turga qarab qo'shimcha maydonlar:
-   - "bullets"/"prose" uchun: "body.paragraphs" — bullets bo'lsa 3-6 ta qisqa punkt, prose bo'lsa 1-2 ta paragraf (har biri ~2 gap)
+   - "bullets"/"prose" uchun: "body.paragraphs" — bullets bo'lsa 4-6 ta qisqa punkt (har biri to'liq, konkret fikr — 3 tadan kam yozma), prose bo'lsa 2 ta paragraf (har biri 2-3 gap, ikkinchisi birinchisidan chuqurroq/misolli bo'lsin)
    - "cards" uchun: "cards" — 3-4 ta karta, har biri {"title": "atama (1-2 so'z)", "desc": "1 gaplik qisqa ta'rif"}
    - "process"/"cycle" uchun: "steps" — 3-5 ta qadam (cycle uchun 3-6), har biri {"title": "qadam nomi (2-4 so'z)", "detail": "1 gap izoh"}
    - "compare" uchun: "compare" — {"left": {"heading": "...", "items": ["...", "..."]}, "right": {"heading": "...", "items": ["...", "..."]}}, har tomonda 2-5 ta qisqa punkt
@@ -326,7 +387,7 @@ Quyidagi tuzilmani to'ldir:
    - "term" — BITTA so'z bo'lsin ( probel, chiziqcha, apostrof YO'Q). Masalan "controls", "atribut", "brauzer". Ko'p so'zli ibora YOZMA.
    - "term" faqat harflardan iborat bo'lsin (raqam, belgi yo'q). 3-12 harf orasida.
    - "clue" — o'sha atamaga ANIQ ishora qiluvchi qisqa savol yoki ta'rif (1 gap), lekin atamaning O'ZINI ichida takrorlamasin (aks holda javob ochilib qoladi).
-   - Atamalar mavzuning asosiy tushunchalari bo'lsin — o'quvchi darsdan bilib chiqishi kerak bo'lgan so'zlar.
+   - Atamalar mavzuning asosiy tushunchalari bo'lsin — o'quvchi darsdan bilib chiqishi kerak bo'lgan so'zlar.{$keyTermsExtra}{$grammarSection}
 
 Javobni FAQAT quyidagi JSON shakliga ANIQ mos formatda qaytar, boshqa hech qanday matn (izoh, markdown ```json belgisi va h.k.) yozma:
 
@@ -352,9 +413,9 @@ Javobni FAQAT quyidagi JSON shakliga ANIQ mos formatda qaytar, boshqa hech qanda
     {"text": "...", "options": ["...", "...", "...", "..."], "correct_index": 0, "explanation": "...", "difficulty": "oson"}
   ],
   "key_terms": [
-    {"term": "...", "clue": "..."},
-    {"term": "...", "clue": "..."}
-  ]
+    {$keyTermsExample},
+    {$keyTermsExample}
+  ]{$grammarJsonField}
 }
 PROMPT;
     }
