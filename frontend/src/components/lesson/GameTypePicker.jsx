@@ -11,8 +11,6 @@ const PRIMARY = [
   { key: 'flashcard', title: 'Kartochkalar', desc: "Kesib olinadigan ikki tomonlama so'z kartochkalari" },
   { key: 'compare', title: "Taqqoslash varag'i", desc: 'Ikki narsani solishtiruvchi ma\'lumotnoma (topilsa)' },
   { key: 'grammar', title: 'Grammatika jadvali', desc: "Qoida va misol jadvali (topilsa)", languageOnly: true },
-  { key: 'writing', title: 'Yozuv mashqi', desc: "So'zni ko'chirib yozish uchun chiziqli qatorlar" },
-  { key: 'fillblank', title: "So'zni to'ldir", desc: "Yetishmagan harflarni topib yozish (anagrammadan osonroq)" },
 ]
 
 const SENIOR = [

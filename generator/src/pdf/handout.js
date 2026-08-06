@@ -474,120 +474,6 @@ function renderGrammarTable(game, pal, color) {
   ]
 }
 
-// --- yozuv mashqi (writing) va so'zni to'ldir (fillblank) — faqat boshlang'ich ---
-//
-// Ikkalasi ham bitta vizual tilda: har harf o'zining rangli (yoki bo'sh —
-// nuqtali chegarali) katakchasida, so'z rangi har band uchun kamalakdan
-// aylanma tanlanadi. Yozuv mashqida bundan tashqari haqiqiy maktab daftari
-// chizig'i (yupqa — nuqtali yordamchi — qalin) chiziladi.
-
-const CHIP = 28
-const RULE_WIDTH = 440
-
-function bigLetterChip(ch, color, blank = false) {
-  if (blank) {
-    return {
-      table: { widths: [CHIP], heights: CHIP, body: [[{ text: '', fillColor: '#FFFFFF' }]] },
-      layout: {
-        hLineWidth: () => 1.6,
-        vLineWidth: () => 1.6,
-        hLineColor: () => color,
-        vLineColor: () => color,
-        hLineStyle: () => ({ dash: { length: 3, space: 2 } }),
-        vLineStyle: () => ({ dash: { length: 3, space: 2 } }),
-      },
-    }
-  }
-
-  return {
-    table: {
-      widths: [CHIP],
-      heights: CHIP,
-      body: [[{ text: ch, alignment: 'center', bold: true, fontSize: 15, color: '#FFFFFF', fillColor: color, margin: [0, 7, 0, 0] }]],
-    },
-    layout: 'noBorders',
-  }
-}
-
-function letterChipRow(letters, color, blanks = null) {
-  return {
-    columns: letters.map((ch, i) => bigLetterChip(ch, color, blanks ? blanks[i] : false)),
-    columnGap: 4,
-  }
-}
-
-function numberBadge(n, color) {
-  return {
-    width: 26,
-    table: { widths: [22], heights: 22, body: [[{ text: String(n), alignment: 'center', bold: true, fontSize: 11, color: '#FFFFFF', fillColor: color, margin: [0, 5, 0, 0] }]] },
-    layout: 'noBorders',
-  }
-}
-
-// Haqiqiy maktab daftari chizig'i: tepada yupqa chiziq, o'rtada nuqtali
-// yordamchi chiziq (harflar bo'yini shu yergacha yetkazish uchun), pastda
-// qalinroq asosiy chiziq.
-function ruledLine(color) {
-  const h = 30
-  return {
-    margin: [0, 6, 0, 0],
-    canvas: [
-      { type: 'line', x1: 0, y1: 2, x2: RULE_WIDTH, y2: 2, lineWidth: 0.7, lineColor: color },
-      { type: 'line', x1: 0, y1: h / 2, x2: RULE_WIDTH, y2: h / 2, lineWidth: 0.7, lineColor: color, dash: { length: 4, space: 3 } },
-      { type: 'line', x1: 0, y1: h, x2: RULE_WIDTH, y2: h, lineWidth: 1.4, lineColor: color },
-    ],
-  }
-}
-
-function renderWriting(game, pal) {
-  return game.items.map((item, idx) => {
-    const color = pal.headers[idx % pal.headers.length]
-    const letters = item.term.split('')
-
-    return {
-      columns: [
-        numberBadge(idx + 1, color),
-        {
-          width: '*',
-          stack: [
-            letterChipRow(letters, color),
-            { text: item.clue, fontSize: 9, italics: true, color: pal.clue, margin: [2, 5, 0, 0] },
-            ruledLine(color),
-            ruledLine(color),
-          ],
-        },
-      ],
-      columnGap: 8,
-      margin: [0, 0, 0, 18],
-      unbreakable: true,
-    }
-  })
-}
-
-function renderFillBlank(game, pal) {
-  return game.items.map((item, idx) => {
-    const color = pal.headers[idx % pal.headers.length]
-    const letters = item.display.map((d) => d.letter)
-    const blanks = item.display.map((d) => d.blank)
-
-    return {
-      columns: [
-        numberBadge(idx + 1, color),
-        {
-          width: '*',
-          stack: [
-            letterChipRow(letters, color, blanks),
-            { text: item.clue, fontSize: 9, italics: true, color: pal.clue, margin: [2, 5, 0, 0] },
-          ],
-        },
-      ],
-      columnGap: 8,
-      margin: [0, 0, 0, 14],
-      unbreakable: true,
-    }
-  })
-}
-
 function renderGame(index, game, pal) {
   const color = pal.headers[index % pal.headers.length]
   const content = []
@@ -601,7 +487,7 @@ function renderGame(index, game, pal) {
   // grammatika ham shu ro'yxatda — ular oldingi blokning oxiri bilan bir
   // sahifada qisilib, chala-chulpa ko'rinib qolgan edi (masalan Kartochkalar
   // orqa tomoni bilan Taqqoslash varag'i bitta betda tiqilishib qolardi).
-  const forceNewPage = ['wordsearch', 'crossword', 'flashcard', 'compare', 'grammar', 'writing', 'fillblank']
+  const forceNewPage = ['wordsearch', 'crossword', 'flashcard', 'compare', 'grammar']
   if (index > 0 && forceNewPage.includes(game.type)) {
     content.push({ text: '', pageBreak: 'before' })
   }
@@ -617,8 +503,6 @@ function renderGame(index, game, pal) {
   else if (game.type === 'flashcard') content.push(...renderFlashcard(game, pal, color))
   else if (game.type === 'compare') content.push(...renderCompareSheet(game, pal, color))
   else if (game.type === 'grammar') content.push(...renderGrammarTable(game, pal, color))
-  else if (game.type === 'writing') content.push(...renderWriting(game, pal))
-  else if (game.type === 'fillblank') content.push(...renderFillBlank(game, pal))
 
   return content
 }
