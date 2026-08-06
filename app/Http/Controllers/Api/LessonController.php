@@ -53,7 +53,7 @@ class LessonController extends Controller
             'duration' => ['required', 'integer', 'in:45,80'],
             'language' => ['required', 'string', 'in:uz,ru,en'],
             'games' => ['required', 'array', 'min:1'],
-            'games.*' => ['string', 'in:anagram,matching,wordsearch,sequence,crossword,truefalse,flashcard,compare,grammar'],
+            'games.*' => ['string', 'in:anagram,matching,wordsearch,sequence,crossword,truefalse,flashcard,compare,grammar,writing,fillblank'],
         ]);
 
         // Frontend sinf bandiga mos ro'yxat beradi, lekin himoya qatlami sifatida

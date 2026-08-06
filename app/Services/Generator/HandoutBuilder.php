@@ -23,7 +23,7 @@ class HandoutBuilder
      * shu ro'yxatga mos checkbox ko'rsatadi; bu yerdagi filtr — himoya qatlami
      * (frontend chetlab o'tilsa ham, boshlang'ich sinfga krossvord tushmasin).
      */
-    public const PRIMARY_GAMES = ['anagram', 'matching', 'wordsearch', 'sequence', 'flashcard', 'compare', 'grammar'];
+    public const PRIMARY_GAMES = ['anagram', 'matching', 'wordsearch', 'sequence', 'flashcard', 'compare', 'grammar', 'writing', 'fillblank'];
 
     public const SENIOR_GAMES = ['matching', 'wordsearch', 'sequence', 'crossword', 'truefalse', 'flashcard', 'compare', 'grammar'];
 
@@ -146,6 +146,20 @@ class HandoutBuilder
             $grammar = $this->grammarBlock($grammarRows);
             if ($grammar !== null) {
                 $games[] = $grammar;
+            }
+        }
+
+        if (in_array('writing', $selectedTypes, true)) {
+            $writing = $this->writingPracticeBlock($terms);
+            if ($writing !== null) {
+                $games[] = $writing;
+            }
+        }
+
+        if (in_array('fillblank', $selectedTypes, true)) {
+            $fillBlank = $this->fillBlankBlock($terms);
+            if ($fillBlank !== null) {
+                $games[] = $fillBlank;
             }
         }
 
@@ -755,6 +769,74 @@ class HandoutBuilder
         ];
     }
 
+    // ---- 10) YOZUV MASHQI (writing) — faqat boshlang'ich sinf --------------
+
+    /**
+     * Har atamani katta harflar bilan ko'rsatib, o'quvchi qo'lda ko'chirib
+     * yozishi uchun (generator tomonida chiziqli qatorlar chiziladi). Yangi
+     * fakt yo'q — faqat tekshirilgan atamalar ko'rsatiladi.
+     */
+    private function writingPracticeBlock(array $terms): ?array
+    {
+        $pool = array_slice($terms, 0, min(6, count($terms)));
+
+        if (count($pool) < 3) {
+            return null;
+        }
+
+        return [
+            'type' => 'writing',
+            'title' => 'Yozuv mashqi',
+            'instruction' => "So'zni diqqat bilan o'qing, so'ng pastdagi chiziqlarga chiroyli qilib ko'chirib yozing.",
+            'items' => array_map(fn ($t) => ['term' => $t['upper'], 'clue' => $t['clue']], $pool),
+        ];
+    }
+
+    // ---- 11) SO'ZNI TO'LDIR (fillblank) — faqat boshlang'ich sinf ----------
+
+    /**
+     * Har atamaning 1-2 harfini (birinchi harfdan tashqari, u ko'rinib
+     * tursin — mo'ljal beradi) bo'sh qoldiradi. Anagrammadan OSONROQ —
+     * butun so'z emas, faqat bir-ikki harf yashiriladi.
+     */
+    private function fillBlankBlock(array $terms): ?array
+    {
+        $pool = array_slice($terms, 0, min(8, count($terms)));
+        $items = [];
+
+        foreach ($pool as $t) {
+            $chars = $this->mbSplit($t['upper']);
+            $len = count($chars);
+
+            if ($len < 3) {
+                continue;
+            }
+
+            $blankCount = $len <= 5 ? 1 : 2;
+            $candidates = range(1, $len - 1);
+            $this->shuffleInPlace($candidates);
+            $blankPositions = array_slice($candidates, 0, min($blankCount, count($candidates)));
+
+            $display = [];
+            foreach ($chars as $i => $ch) {
+                $display[] = ['letter' => $ch, 'blank' => in_array($i, $blankPositions, true)];
+            }
+
+            $items[] = ['term' => $t['upper'], 'clue' => $t['clue'], 'display' => $display];
+        }
+
+        if (count($items) < 4) {
+            return null;
+        }
+
+        return [
+            'type' => 'fillblank',
+            'title' => "So'zni to'ldir",
+            'instruction' => "Yetishmagan harflarni toping va bo'sh katakchalarga yozing.",
+            'items' => $items,
+        ];
+    }
+
     // ---- Javoblar kaliti (o'qituvchi uchun) --------------------------------
 
     private function buildAnswerKey(array $games): array
@@ -798,6 +880,11 @@ class HandoutBuilder
                     $lines[] = "{$it['number']}. ".($it['answer'] ? 'T' : 'N');
                 }
                 $key[] = ['title' => $game['title'], 'lines' => $lines];
+            } elseif ($game['type'] === 'fillblank') {
+                $key[] = [
+                    'title' => $game['title'],
+                    'lines' => array_map(fn ($it) => $it['term'], $game['items']),
+                ];
             }
         }
 
