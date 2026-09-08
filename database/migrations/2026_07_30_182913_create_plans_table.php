@@ -18,7 +18,7 @@ return new class extends Migration
             $table->integer('price_uzs');
             $table->integer('duration_days');
             $table->integer('generation_limit')->nullable();
-            $table->jsonb('features')->default('{}');
+            $table->jsonb('features')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

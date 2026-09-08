@@ -312,6 +312,82 @@ function renderCrossword(game, pal, color) {
   ]
 }
 
+// --- kod ochish (code cracker) --------------------------------------------
+
+// Bir qator raqam-kodni ikki qatorli jadval sifatida chizadi: yuqorida
+// kichik raqam, pastda katak — "ochiq" (revealed) harflar rangli fon bilan
+// oldindan to'ldirilgan, qolganlari o'quvchi to'ldirishi uchun bo'sh.
+function codeBox(codes, pal, color) {
+  return {
+    table: {
+      widths: codes.map(() => CELL),
+      heights: [9, CELL - 3],
+      body: [
+        codes.map((c) => ({ text: String(c.number), alignment: 'center', fontSize: 6, color: pal.clue, margin: [0, 1, 0, 0] })),
+        codes.map((c) => ({
+          text: c.revealed ? c.letter : '',
+          alignment: 'center',
+          bold: true,
+          fontSize: 11,
+          color: c.revealed ? '#FFFFFF' : pal.ink,
+          fillColor: c.revealed ? color : null,
+          margin: [0, 2, 0, 0],
+        })),
+      ],
+    },
+    layout: gridLayout(pal.line),
+  }
+}
+
+function chunkArray(arr, size) {
+  const out = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+function renderCodeCracker(game, pal, color) {
+  const content = [
+    { text: 'Shifr kaliti — ochiq harflardan foydalanib, kodlarni yeching:', bold: true, fontSize: 9.5, color: pal.clue, margin: [0, 0, 0, 4] },
+  ]
+
+  for (const row of chunkArray(game.key, 13)) {
+    content.push({ columns: [{ width: 'auto', ...codeBox(row, pal, color) }], margin: [0, 0, 0, 4] })
+  }
+
+  content.push({ text: '', margin: [0, 4, 0, 0] })
+
+  game.items.forEach((it, i) => {
+    content.push({ text: `${i + 1}. ${it.clue}`, fontSize: 10, color: pal.ink, margin: [0, 6, 0, 3] })
+    content.push({ columns: [{ width: 'auto', ...codeBox(it.codes, pal, color) }], margin: [0, 0, 0, 2] })
+  })
+
+  return content
+}
+
+// --- matematik amallar varag'i (mathworksheet) ----------------------------
+
+function renderMathWorksheet(game, pal, color) {
+  const cell = (it, i) => ({
+    stack: [
+      { text: `${i + 1})`, bold: true, fontSize: 9.5, color, margin: [0, 0, 0, 2] },
+      { text: String(it.a), alignment: 'right', fontSize: 12, color: pal.ink },
+      { text: `${game.symbol} ${it.b}`, alignment: 'right', fontSize: 12, color: pal.ink, margin: [0, 0, 0, 3] },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 75, y2: 0, lineWidth: 1, lineColor: pal.line }] },
+    ],
+    margin: [0, 0, 12, 16],
+  })
+
+  const cols = 4
+  const rows = []
+  for (let i = 0; i < game.items.length; i += cols) {
+    const rowItems = game.items.slice(i, i + cols).map((it, j) => cell(it, i + j))
+    while (rowItems.length < cols) rowItems.push({ text: '' })
+    rows.push({ columns: rowItems })
+  }
+
+  return rows
+}
+
 // "To'g'ri tartib" — aralashgan bosqichlar ro'yxati, har biriga qutili raqam joyi.
 function renderSequence(game, pal, color) {
   const rows = game.items.map((it) => ({
@@ -487,7 +563,7 @@ function renderGame(index, game, pal) {
   // grammatika ham shu ro'yxatda — ular oldingi blokning oxiri bilan bir
   // sahifada qisilib, chala-chulpa ko'rinib qolgan edi (masalan Kartochkalar
   // orqa tomoni bilan Taqqoslash varag'i bitta betda tiqilishib qolardi).
-  const forceNewPage = ['wordsearch', 'crossword', 'flashcard', 'compare', 'grammar']
+  const forceNewPage = ['wordsearch', 'crossword', 'flashcard', 'compare', 'grammar', 'mathworksheet']
   if (index > 0 && forceNewPage.includes(game.type)) {
     content.push({ text: '', pageBreak: 'before' })
   }
@@ -503,6 +579,8 @@ function renderGame(index, game, pal) {
   else if (game.type === 'flashcard') content.push(...renderFlashcard(game, pal, color))
   else if (game.type === 'compare') content.push(...renderCompareSheet(game, pal, color))
   else if (game.type === 'grammar') content.push(...renderGrammarTable(game, pal, color))
+  else if (game.type === 'codecracker') content.push(...renderCodeCracker(game, pal, color))
+  else if (game.type === 'mathworksheet') content.push(...renderMathWorksheet(game, pal, color))
 
   return content
 }

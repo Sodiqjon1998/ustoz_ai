@@ -48,4 +48,13 @@ return [
         'url' => env('GENERATOR_URL', 'http://127.0.0.1:4000'),
     ],
 
+    // Claude (AWS Bedrock, "Bedrock API keys" — Bearer token, SigV4 shart emas).
+    // Gemini butunlay ishlamay qolsa (masalan loyiha bloklansa) avtomatik
+    // zaxira sifatida ishlatiladi (GeminiService::generateLessonContent()).
+    'bedrock' => [
+        'token' => env('BEDROCK_API_KEY'),
+        'region' => env('BEDROCK_REGION', 'eu-north-1'),
+        'model' => env('BEDROCK_MODEL', 'eu.anthropic.claude-opus-5'),
+    ],
+
 ];

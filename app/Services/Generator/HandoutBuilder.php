@@ -23,9 +23,16 @@ class HandoutBuilder
      * shu ro'yxatga mos checkbox ko'rsatadi; bu yerdagi filtr — himoya qatlami
      * (frontend chetlab o'tilsa ham, boshlang'ich sinfga krossvord tushmasin).
      */
-    public const PRIMARY_GAMES = ['anagram', 'matching', 'wordsearch', 'sequence', 'flashcard', 'compare', 'grammar'];
+    public const PRIMARY_GAMES = ['anagram', 'matching', 'wordsearch', 'sequence', 'flashcard', 'compare', 'grammar', 'codecracker'];
 
-    public const SENIOR_GAMES = ['matching', 'wordsearch', 'sequence', 'crossword', 'truefalse', 'flashcard', 'compare', 'grammar'];
+    public const SENIOR_GAMES = ['matching', 'wordsearch', 'sequence', 'crossword', 'truefalse', 'flashcard', 'compare', 'grammar', 'codecracker'];
+
+    /**
+     * Matematik amallar varag'i — faqat "Matematika" fanida taklif etiladi
+     * (sinf bandidan mustaqil), shuning uchun PRIMARY_GAMES/SENIOR_GAMES'da
+     * emas, alohida qo'shiladi.
+     */
+    public const MATH_GAME = 'mathworksheet';
 
     public function build(string $topic, string $subjectName, string $themeKey, int $grade, int $duration, array $content, array $selectedGames = []): array
     {
@@ -36,9 +43,12 @@ class HandoutBuilder
 
         $gradeBand = $grade <= 4 ? 'primary' : 'senior';
         $allowed = $gradeBand === 'primary' ? self::PRIMARY_GAMES : self::SENIOR_GAMES;
+        if ($subjectName === 'Matematika') {
+            $allowed[] = self::MATH_GAME;
+        }
         $selectedTypes = empty($selectedGames) ? $allowed : array_values(array_intersect($allowed, $selectedGames));
 
-        $games = $this->buildGames($terms, $phases, $slides, $grammarRows, $selectedTypes);
+        $games = $this->buildGames($terms, $phases, $slides, $grammarRows, $selectedTypes, $topic, $grade, $subjectName);
 
         return [
             'title' => $topic,
@@ -92,7 +102,7 @@ class HandoutBuilder
      * o'yin o'tkazib yuboriladi (chala o'yin ko'rsatilmaydi). `$selectedTypes`
      * — o'qituvchi (yoki sinf bandi) tanlagan turlar, faqat shular quriladi.
      */
-    private function buildGames(array $terms, array $phases, array $slides, array $grammarRows, array $selectedTypes): array
+    private function buildGames(array $terms, array $phases, array $slides, array $grammarRows, array $selectedTypes, string $topic, int $grade, string $subjectName): array
     {
         $games = [];
 
@@ -121,6 +131,14 @@ class HandoutBuilder
             if ($crossword !== null) {
                 $games[] = $crossword;
             }
+        }
+
+        if (in_array('codecracker', $selectedTypes, true) && count($terms) >= 4) {
+            $games[] = $this->codeCrackerGame(array_slice($terms, 0, 6));
+        }
+
+        if (in_array(self::MATH_GAME, $selectedTypes, true) && $subjectName === 'Matematika') {
+            $games[] = $this->mathWorksheetGame($topic, $grade);
         }
 
         if (in_array('sequence', $selectedTypes, true) && count($phases) >= 3) {
@@ -563,6 +581,184 @@ class HandoutBuilder
         ];
     }
 
+    // ---- 4b) KOD OCHISH (code cracker) -------------------------------------
+
+    /**
+     * Har bir noyob harfga tasodifiy raqam beriladi (shifr kaliti). Kalitning
+     * bir qismi (~18%, kamida 1 ta) "ochiq" — javob beriladi, qolganini
+     * o'quvchi so'zlar orasidagi umumiy harflardan xulosa chiqarib topadi.
+     * Yangi fakt o'ylab topilmaydi — faqat mavjud, tekshirilgan atamalar
+     * (term/clue) raqamli shifrga aylantiriladi.
+     */
+    private function codeCrackerGame(array $terms): array
+    {
+        $letters = [];
+        foreach ($terms as $t) {
+            foreach ($this->mbSplit($t['upper']) as $ch) {
+                $letters[$ch] = true;
+            }
+        }
+        $letters = array_keys($letters);
+        $this->shuffleInPlace($letters);
+
+        $codeOf = [];
+        foreach ($letters as $i => $ch) {
+            $codeOf[$ch] = $i + 1;
+        }
+
+        $revealCount = max(1, (int) round(count($letters) * 0.18));
+        $order = range(0, count($letters) - 1);
+        $this->shuffleInPlace($order);
+
+        $revealedLetters = [];
+        foreach (array_slice($order, 0, $revealCount) as $idx) {
+            $revealedLetters[$letters[$idx]] = true;
+        }
+
+        $key = [];
+        foreach ($codeOf as $ch => $num) {
+            $key[] = ['number' => $num, 'letter' => $ch, 'revealed' => isset($revealedLetters[$ch])];
+        }
+        usort($key, fn ($a, $b) => $a['number'] - $b['number']);
+
+        $items = [];
+        foreach ($terms as $t) {
+            $codes = [];
+            foreach ($this->mbSplit($t['upper']) as $ch) {
+                $codes[] = ['number' => $codeOf[$ch], 'letter' => $ch, 'revealed' => isset($revealedLetters[$ch])];
+            }
+            $items[] = ['clue' => $t['clue'], 'answer' => $t['upper'], 'codes' => $codes];
+        }
+
+        return [
+            'type' => 'codecracker',
+            'title' => 'Kod ochish',
+            'instruction' => "Shifr kaliti — ochiq harflardan foydalanib, so'zlarning kodini yeching.",
+            'key' => $key,
+            'items' => $items,
+        ];
+    }
+
+    // ---- 4c) MATEMATIK AMALLAR VARAG'I (faqat Matematika fani) -------------
+
+    /**
+     * Mavzu matnidan amal turini (qo'shish/ayirish/ko'paytirish/bo'lish)
+     * kalit so'z bo'yicha aniqlaydi va sinfga mos xonali sonlardan 25 ta
+     * misol tasodifiy yasaydi. AI ishtirok etmaydi — faqat arifmetika,
+     * shuning uchun hech qachon xato/yolg'on natija chiqmaydi.
+     */
+    private function mathWorksheetGame(string $topic, int $grade): array
+    {
+        $op = $this->detectMathOperation($topic);
+        $digits = $this->digitsForGrade($grade, $op);
+
+        $items = [];
+        for ($i = 0; $i < 25; $i++) {
+            $items[] = $this->mathProblem($op, $digits);
+        }
+
+        $titles = [
+            'add' => "Qo'shish",
+            'sub' => 'Ayirish',
+            'mul' => "Ko'paytirish",
+            'div' => "Bo'lish",
+        ];
+        $symbols = ['add' => '+', 'sub' => '−', 'mul' => '×', 'div' => ':'];
+
+        return [
+            'type' => 'mathworksheet',
+            'title' => $titles[$op].' — '.$digits['label'],
+            'instruction' => 'Misollarni yeching.',
+            'operation' => $op,
+            'symbol' => $symbols[$op],
+            'items' => $items,
+        ];
+    }
+
+    private function detectMathOperation(string $topic): string
+    {
+        $t = mb_strtolower($topic, 'UTF-8');
+
+        if (str_contains($t, 'ayir')) {
+            return 'sub';
+        }
+        if (str_contains($t, "ko'paytir") || str_contains($t, 'kopaytir') || str_contains($t, 'karra')) {
+            return 'mul';
+        }
+        if (str_contains($t, "bo'lish") || str_contains($t, 'bolish') || str_contains($t, 'bolin') || str_contains($t, "bo'lin")) {
+            return 'div';
+        }
+
+        return 'add';
+    }
+
+    /** @return array<string, mixed> */
+    private function digitsForGrade(int $grade, string $op): array
+    {
+        if ($op === 'mul') {
+            $a = $grade <= 3 ? 1 : 2;
+            $b = $grade <= 5 ? 1 : 2;
+
+            return ['a' => $a, 'b' => $b, 'label' => "{$a}x{$b} xonali sonlar"];
+        }
+
+        if ($op === 'div') {
+            $divisor = $grade <= 4 ? 1 : 2;
+            $quotient = 2;
+
+            return ['divisor' => $divisor, 'quotient' => $quotient, 'label' => "qoldiqsiz bo'lish"];
+        }
+
+        $n = match (true) {
+            $grade <= 2 => 2,
+            $grade <= 3 => 3,
+            default => 4,
+        };
+
+        return ['n' => $n, 'label' => "{$n} xonali sonlar"];
+    }
+
+    /** @return array{a: int, b: int, answer: int} */
+    private function mathProblem(string $op, array $digits): array
+    {
+        if ($op === 'add') {
+            $a = $this->randDigits($digits['n']);
+            $b = $this->randDigits($digits['n']);
+
+            return ['a' => $a, 'b' => $b, 'answer' => $a + $b];
+        }
+
+        if ($op === 'sub') {
+            $a = $this->randDigits($digits['n']);
+            $b = mt_rand(1, $a);
+
+            return ['a' => $a, 'b' => $b, 'answer' => $a - $b];
+        }
+
+        if ($op === 'mul') {
+            $a = $this->randDigits($digits['a']);
+            $b = $this->randDigits($digits['b']);
+
+            return ['a' => $a, 'b' => $b, 'answer' => $a * $b];
+        }
+
+        // Bo'lish — natija har doim butun son bo'lishi uchun avval bo'linma
+        // va bo'luvchini tanlab, so'ng bo'linuvchini ko'paytmadan hosil qilamiz.
+        $divisor = $this->randDigits($digits['divisor']);
+        $quotient = $this->randDigits($digits['quotient']);
+        $dividend = $divisor * $quotient;
+
+        return ['a' => $dividend, 'b' => $divisor, 'answer' => $quotient];
+    }
+
+    private function randDigits(int $n): int
+    {
+        $min = (int) str_pad('1', $n, '0');
+        $max = (int) str_pad('', $n, '9');
+
+        return mt_rand($min, $max);
+    }
+
     // ---- 5) TO'G'RI TARTIB (sequencing) ------------------------------------
 
     /**
@@ -796,6 +992,19 @@ class HandoutBuilder
                 $lines = [];
                 foreach ($game['items'] as $it) {
                     $lines[] = "{$it['number']}. ".($it['answer'] ? 'T' : 'N');
+                }
+                $key[] = ['title' => $game['title'], 'lines' => $lines];
+            } elseif ($game['type'] === 'codecracker') {
+                $keyLines = [];
+                foreach ($game['key'] as $k) {
+                    $keyLines[] = "{$k['number']}={$k['letter']}";
+                }
+                $key[] = ['title' => $game['title']." (shifr kaliti)", 'lines' => $keyLines];
+                $key[] = ['title' => $game['title']." (so'zlar)", 'lines' => array_map(fn ($it) => $it['answer'], $game['items'])];
+            } elseif ($game['type'] === 'mathworksheet') {
+                $lines = [];
+                foreach ($game['items'] as $i => $it) {
+                    $lines[] = ($i + 1).') '.$it['answer'];
                 }
                 $key[] = ['title' => $game['title'], 'lines' => $lines];
             }

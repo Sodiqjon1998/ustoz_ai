@@ -19,7 +19,7 @@ return new class extends Migration
             $table->unsignedBigInteger('subject_id')->nullable();
             $table->string('ip', 45)->nullable();
             $table->string('user_agent', 255)->nullable();
-            $table->jsonb('meta')->default('{}');
+            $table->jsonb('meta')->nullable();
             $table->timestamp('created_at')->useCurrent();
 
             $table->index(['subject_type', 'subject_id']);

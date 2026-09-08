@@ -17,6 +17,7 @@ class SubjectSeeder extends Seeder
             ['slug' => 'ona_tili', 'name_uz' => 'Ona tili', 'name_ru' => 'Родной язык', 'name_en' => 'Native Language', 'icon' => 'book-open', 'color' => '#4F46E5', 'theme_key' => 'language_arts'],
             ['slug' => 'rus_tili', 'name_uz' => 'Rus tili', 'name_ru' => 'Русский язык', 'name_en' => 'Russian', 'icon' => 'languages', 'color' => '#4F46E5', 'theme_key' => 'language_arts'],
             ['slug' => 'ingliz_tili', 'name_uz' => 'Ingliz tili', 'name_ru' => 'Английский язык', 'name_en' => 'English', 'icon' => 'languages', 'color' => '#4F46E5', 'theme_key' => 'language_arts'],
+            ['slug' => 'qirgiz_tili', 'name_uz' => 'Qirg\'iz tili', 'name_ru' => 'Киргизский язык', 'name_en' => 'Kyrgyz', 'icon' => 'languages', 'color' => '#4F46E5', 'theme_key' => 'language_arts'],
             ['slug' => 'matematika', 'name_uz' => 'Matematika', 'name_ru' => 'Математика', 'name_en' => 'Mathematics', 'icon' => 'sigma', 'color' => '#0891B2', 'theme_key' => 'mathematics'],
             ['slug' => 'algebra', 'name_uz' => 'Algebra', 'name_ru' => 'Алгебра', 'name_en' => 'Algebra', 'icon' => 'sigma', 'color' => '#0891B2', 'theme_key' => 'mathematics'],
             ['slug' => 'geometriya', 'name_uz' => 'Geometriya', 'name_ru' => 'Геометрия', 'name_en' => 'Geometry', 'icon' => 'shapes', 'color' => '#0891B2', 'theme_key' => 'mathematics'],

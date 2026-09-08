@@ -56,7 +56,7 @@ echo.
 echo ==========================================
 echo  TAYYOR!
 echo.
-echo  Brauzerda oching:  http://localhost:5173
+echo  Brauzerda oching:  http://localhost:5174
 echo.
 echo  Test admin bilan kirish:
 echo    Telefon: +998900000000
@@ -65,5 +65,5 @@ echo.
 echo  To'xtatish uchun ochilgan uchta qora (Backend/Generator/Frontend) oynani yoping.
 echo ==========================================
 echo.
-start http://localhost:5173
+start http://localhost:5174
 pause

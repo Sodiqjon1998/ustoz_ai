@@ -7,6 +7,7 @@ const PRIMARY = [
   { key: 'anagram', title: 'Anagramma', desc: 'Aralashgan harflardan so\'zni topish' },
   { key: 'matching', title: 'Moslashtirish', desc: 'Atama va ta\'rifni juftlash' },
   { key: 'wordsearch', title: "So'z izlash", desc: 'Katta jadvaldan so\'zlarni topish' },
+  { key: 'codecracker', title: 'Kod ochish', desc: "Raqamli shifrni yechib so'zni topish" },
   { key: 'sequence', title: "To'g'ri tartib", desc: 'Aralashgan qadamlarni tartiblash' },
   { key: 'flashcard', title: 'Kartochkalar', desc: "Kesib olinadigan ikki tomonlama so'z kartochkalari" },
   { key: 'compare', title: "Taqqoslash varag'i", desc: 'Ikki narsani solishtiruvchi ma\'lumotnoma (topilsa)' },
@@ -16,6 +17,7 @@ const PRIMARY = [
 const SENIOR = [
   { key: 'matching', title: 'Moslashtirish', desc: 'Atama va ta\'rifni juftlash' },
   { key: 'wordsearch', title: "So'z izlash", desc: 'Katta jadvaldan so\'zlarni topish' },
+  { key: 'codecracker', title: 'Kod ochish', desc: "Raqamli shifrni yechib so'zni topish" },
   { key: 'sequence', title: "To'g'ri tartib", desc: 'Aralashgan qadamlarni tartiblash' },
   { key: 'crossword', title: 'Krossvord', desc: "Ta'rifga qarab katakchani to\'ldirish" },
   { key: 'truefalse', title: "To'g'ri/Noto'g'ri", desc: 'Har juftlik to\'g\'riligini aniqlash' },
@@ -24,14 +26,19 @@ const SENIOR = [
   { key: 'grammar', title: 'Grammatika jadvali', desc: "Qoida va misol jadvali (topilsa)", languageOnly: true },
 ]
 
+// Faqat "Matematika" fanida ko'rinadi — sinf bandidan mustaqil (backend
+// HandoutBuilder::MATH_GAME bilan sinxron).
+const MATH_GAME = { key: 'mathworksheet', title: 'Matematik amallar', desc: "Qo'shish/ayirish/ko'paytirish/bo'lish misollari" }
+
 // Backend `GeminiService::TRANSLATABLE_LANGUAGE_SUBJECTS` bilan sinxron —
 // faqat shu fanlarda tarjima/grammatika ma'lumoti so'raladi.
-const LANGUAGE_SUBJECTS = ['Ingliz tili', 'Rus tili']
+const LANGUAGE_SUBJECTS = ['Ingliz tili', 'Rus tili', "Qirg'iz tili"]
 
 export function gamesFor(grade, subjectName) {
   const list = grade != null && grade <= 4 ? PRIMARY : SENIOR
   const isLanguageSubject = LANGUAGE_SUBJECTS.includes(subjectName)
-  return list.filter((opt) => !opt.languageOnly || isLanguageSubject)
+  const filtered = list.filter((opt) => !opt.languageOnly || isLanguageSubject)
+  return subjectName === 'Matematika' ? [...filtered, MATH_GAME] : filtered
 }
 
 const container = {

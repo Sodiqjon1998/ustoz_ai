@@ -51,9 +51,9 @@ class LessonController extends Controller
             'grade' => ['required', 'integer', 'min:1', 'max:11'],
             'topic' => ['required', 'string', 'min:2', 'max:200'],
             'duration' => ['required', 'integer', 'in:45,80'],
-            'language' => ['required', 'string', 'in:uz,ru,en'],
+            'language' => ['required', 'string', 'in:uz,ru,en,ky,tg,kaa'],
             'games' => ['required', 'array', 'min:1'],
-            'games.*' => ['string', 'in:anagram,matching,wordsearch,sequence,crossword,truefalse,flashcard,compare,grammar'],
+            'games.*' => ['string', 'in:anagram,matching,wordsearch,sequence,crossword,truefalse,flashcard,compare,grammar,codecracker,mathworksheet'],
         ]);
 
         // Frontend sinf bandiga mos ro'yxat beradi, lekin himoya qatlami sifatida
@@ -61,6 +61,10 @@ class LessonController extends Controller
         // so'ralib qolmasin).
         $gradeBand = $data['grade'] <= 4 ? 'primary' : 'senior';
         $allowedGames = $gradeBand === 'primary' ? HandoutBuilder::PRIMARY_GAMES : HandoutBuilder::SENIOR_GAMES;
+        $subjectName = Subject::where('id', $data['subject_id'])->value('name_uz');
+        if ($subjectName === 'Matematika') {
+            $allowedGames[] = HandoutBuilder::MATH_GAME;
+        }
         $games = array_values(array_intersect($allowedGames, $data['games']));
 
         $normalized = $normalizer->normalize($data['topic'], $data['language']);

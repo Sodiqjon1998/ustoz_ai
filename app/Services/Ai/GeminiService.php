@@ -17,10 +17,16 @@ class GeminiService
     /** Muvaffaqiyatli so'rovda qaysi kalit ishlatilgani: personal_1/personal_2/shared. */
     private ?string $lastKeySource = null;
 
+    /** Mazmun qaysi provayderdan kelgani: "gemini" yoki "claude" (Gemini butunlay ishlamasa zaxira). */
+    private string $lastProvider = 'gemini';
+
     private const LANGUAGE_NAMES = [
         'uz' => "o'zbek",
         'ru' => 'rus',
         'en' => 'ingliz',
+        'ky' => "qirg'iz",
+        'tg' => 'tojik',
+        'kaa' => 'qoraqalpoq',
     ];
 
     /**
@@ -87,7 +93,7 @@ class GeminiService
      * so'raladi (tarjima kartochkalari uchun). "Ona tili" bu ro'yxatda YO'Q —
      * u chet tili emas, tarjima kerak emas.
      */
-    private const TRANSLATABLE_LANGUAGE_SUBJECTS = ['Ingliz tili', 'Rus tili'];
+    private const TRANSLATABLE_LANGUAGE_SUBJECTS = ['Ingliz tili', 'Rus tili', 'Qirg\'iz tili'];
 
     /**
      * @return array{

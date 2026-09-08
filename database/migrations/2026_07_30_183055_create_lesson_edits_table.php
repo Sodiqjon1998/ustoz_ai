@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('lesson_id')->constrained('lessons')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->jsonb('overrides')->default('{}');
+            $table->jsonb('overrides')->nullable();
             $table->integer('version')->default(1);
             $table->timestamps();
 
