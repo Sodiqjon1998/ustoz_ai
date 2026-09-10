@@ -393,6 +393,7 @@ Quyidagi tuzilmani to'ldir:
    - "term" — BITTA so'z bo'lsin ( probel, chiziqcha, apostrof YO'Q). Masalan "controls", "atribut", "brauzer". Ko'p so'zli ibora YOZMA.
    - "term" faqat harflardan iborat bo'lsin (raqam, belgi yo'q). 3-12 harf orasida.
    - "clue" — o'sha atamaga ANIQ ishora qiluvchi qisqa savol yoki ta'rif (1 gap), lekin atamaning O'ZINI ichida takrorlamasin (aks holda javob ochilib qoladi).
+   - "clue" ichida HTML teg (<sup>, <sub>, <b>, <br> va h.k.) BO'LMASIN — tarqatma PDF teglarni tanimaydi, ular "<sup>" bo'lib tom ma'noda chiqadi. Daraja kerak bo'lsa "a^2", indeks kerak bo'lsa "log_a b" ko'rinishida oddiy matn bilan yoz.
    - Atamalar mavzuning asosiy tushunchalari bo'lsin — o'quvchi darsdan bilib chiqishi kerak bo'lgan so'zlar.{$keyTermsExtra}{$grammarSection}
 
 Javobni FAQAT quyidagi JSON shakliga ANIQ mos formatda qaytar, boshqa hech qanday matn (izoh, markdown ```json belgisi va h.k.) yozma:

@@ -211,9 +211,9 @@ class HandoutBuilder
                 continue;
             }
 
-            $term = trim((string) $t['term']);
-            $clue = trim((string) ($t['clue'] ?? ''));
-            $translation = trim((string) ($t['translation'] ?? ''));
+            $term = $this->plainText((string) $t['term']);
+            $clue = $this->plainText((string) ($t['clue'] ?? ''));
+            $translation = $this->plainText((string) ($t['translation'] ?? ''));
 
             if ($clue === '' || ! preg_match('/^\p{L}{3,12}$/u', $term)) {
                 continue;
@@ -229,6 +229,48 @@ class HandoutBuilder
         }
 
         return $terms;
+    }
+
+    /**
+     * AI ta'rifida uchrab qoladigan HTML'ni oddiy matnga aylantiradi — pdfmake
+     * teglarni tanimaydi va ular varaqda tom ma'noda "<sup>" bo'lib chiqadi.
+     * Daraja/indeks MA'NO tashiydi (a<sup>2</sup> — bu a^2), shuning uchun
+     * ular shunchaki o'chirilmay, matematik yozuvga o'giriladi.
+     */
+    private function plainText(string $html): string
+    {
+        $s = $html;
+
+        // Ichkaridan tashqariga — ichma-ich joylashgan <sup>/<sub> ham to'g'ri
+        // o'giriladi (masalan a<sup>log<sub>a</sub>b</sup> = a^(log_ab)).
+        for ($pass = 0; $pass < 5; $pass++) {
+            $before = $s;
+            $s = preg_replace_callback(
+                '#<(sup|sub)>([^<]*)</\1>#iu',
+                function (array $m): string {
+                    $sign = mb_strtolower($m[1], 'UTF-8') === 'sup' ? '^' : '_';
+                    $inner = trim($m[2]);
+
+                    if ($inner === '') {
+                        return '';
+                    }
+
+                    return $this->mbLen($inner) === 1 ? $sign.$inner : $sign.'('.$inner.')';
+                },
+                $s
+            ) ?? $s;
+
+            if ($s === $before) {
+                break;
+            }
+        }
+
+        $s = preg_replace('#<br\s*/?>#iu', ' ', $s) ?? $s;
+        $s = strip_tags($s);
+        $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $s = preg_replace('/\s+/u', ' ', $s) ?? $s;
+
+        return trim($s);
     }
 
     /**
