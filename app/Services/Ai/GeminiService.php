@@ -742,7 +742,7 @@ PROMPT;
 
         foreach ($candidates as $candidate) {
             foreach ($models as $model) {
-                $response = Http::timeout(180)->post(
+                $response = Http::timeout(180)->withHeaders(['Expect' => ''])->post(
                     "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$candidate['key']}",
                     [
                         'contents' => [
@@ -760,10 +760,8 @@ PROMPT;
                     ]
                 );
 
-                if ($response->status() === 429) {
-                    // Shu kalitning kvotasi tugagan — keyingi model, keyin
-                    // keyingi kalit sinaladi.
-                    $lastError = 'quota';
+                if ($response->status() === 429 || $response->status() === 503) {
+                    $lastError = $response->status() === 429 ? 'quota' : 'overloaded';
 
                     continue;
                 }
@@ -794,6 +792,12 @@ PROMPT;
         if ($lastError === 'quota') {
             throw new \RuntimeException(
                 "AI xizmatining bugungi bepul limiti tugadi (barcha ulangan kalitlar). Ertaga qayta urinib ko'ring yoki yangi API kalit ulang."
+            );
+        }
+
+        if ($lastError === 'overloaded') {
+            throw new \RuntimeException(
+                "AI xizmati hozir band (yuqori yuklama). Bir necha daqiqadan keyin qayta urinib ko'ring."
             );
         }
 

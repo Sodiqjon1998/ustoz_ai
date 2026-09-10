@@ -1,5 +1,4 @@
 import { renderPdf } from './printer.js'
-import { getTheme } from '../pptx/themes/index.js'
 
 // Tarqatma material — o'quvchi to'ldiradigan RANGLI ish daftari. Har bir o'yin
 // (anagramma, moslashtirish, so'z izlash, krossvord) HandoutBuilder'da mavzu
@@ -9,43 +8,77 @@ import { getTheme } from '../pptx/themes/index.js'
 //   primary (1-4 sinf)  — yorqin, o'yinbop; har o'yin boshqa rangda (kamalak).
 //   senior  (5-11 sinf) — fan palitrasi; bitta uyg'un brend rangi.
 
-const PRIMARY_ACCENTS = ['#E11D48', '#EA580C', '#16A34A', '#2563EB', '#7C3AED', '#DB2777']
+// Sahifa geometriyasi — referens shablondan olingan aniq o'lchamlar (pt).
+const PAGE_W = 595.28
+const PAGE_H = 841.89
+const MARGIN = 32
+const CONTENT_W = PAGE_W - MARGIN * 2 // 531.3
+const COL_W = 255 // ikki ustunli tarqatmada bitta ustun kengligi
+const COL2_X = 295 - MARGIN // ikkinchi ustungacha bo'lgan siljish
 
-const CELL = 16 // grid katak o'lchami (pt)
+// Harf katagi: 22x22, qadam 25 (3pt oraliq).
+const BOX = 22
+const BOX_GAP = 3
+const BOX_PITCH = BOX + BOX_GAP
 
-function resolvePalette(band, themeKey) {
-  if (band === 'primary') {
-    return {
-      band: 'primary',
-      headers: PRIMARY_ACCENTS,
-      chip: '#FDE68A',
-      chipInk: '#7C2D12',
-      ink: '#1F2937',
-      clue: '#4B5563',
-      card: '#FFFBEB',
-      line: '#D1D5DB',
-      block: '#475569',
-      cellInk: '#111827',
-      cover: '#7C3AED',
-    }
-  }
+// pdfmake'da 11pt Roboto qatorining haqiqiy balandligi (o'lchab topilgan) —
+// harflarni katak ichida markazlash va qator balandligini saqlash uchun kerak.
+const OVERLAY_LINE_H = 12.9
 
-  const t = getTheme(themeKey)
-  const hx = (c) => '#' + c
+const CELL = 16 // so'z izlash / krossvord grid katagi
 
+// Shablon palitrasi — barcha tarqatmalar uchun bitta, o'zgarmas.
+const TPL = {
+  blue: '#3A96FF', // ajratgich chizig'i, aksent
+  boxFill: '#EBF4FF', // harf katagi foni
+  boxLine: '#3A96FF', // harf katagi chegarasi
+  emptyLine: '#C8CDD3', // bo'sh javob katagi chegarasi
+  cardLine: '#E9E9E9', // topshiriq kartasi chegarasi
+  ink: '#1F2937',
+  clue: '#4B5563',
+  muted: '#9CA3AF',
+  panel: '#F7F8FA',
+  // burchak bezaklari
+  cornerDeep: '#0080C5',
+  cornerLight: '#7CD3F6',
+  cornerPink: '#F287B6',
+  cornerYellow: '#FEC124',
+  cornerGreen: '#28EF7B',
+}
+
+function resolvePalette() {
   return {
-    band: 'senior',
-    // Uyg'unlik uchun bitta brend rangi; xilma-xillik chip/aksentda.
-    headers: [hx(t.brand)],
-    chip: hx(t.soft),
-    chipInk: hx(t.deep),
-    ink: hx(t.body),
-    clue: '#4B5563',
-    card: hx(t.cream),
-    line: '#CBD5E1',
-    block: hx(t.deep),
-    cellInk: hx(t.body),
-    cover: hx(t.deep),
+    headers: [TPL.blue],
+    chip: TPL.boxFill,
+    chipInk: TPL.ink,
+    ink: TPL.ink,
+    clue: TPL.clue,
+    card: TPL.panel,
+    line: TPL.cardLine,
+    block: TPL.cornerDeep,
+    cellInk: TPL.ink,
+    cover: TPL.blue,
+  }
+}
+
+// Har bir sahifaga chiziladigan burchak bezaklari — referens shablondagi
+// aniq joylashuv va ranglar.
+function pageFrame() {
+  return {
+    canvas: [
+      // yuqori-chap
+      { type: 'rect', x: 0, y: 0, w: 16, h: 60, color: TPL.cornerDeep },
+      { type: 'rect', x: 0, y: 0, w: 60, h: 16, color: TPL.cornerLight },
+      // yuqori-o'ng
+      { type: 'rect', x: PAGE_W - 16, y: 0, w: 16, h: 60, color: TPL.cornerDeep },
+      { type: 'rect', x: PAGE_W - 60, y: 0, w: 60, h: 16, color: TPL.cornerLight },
+      { type: 'rect', x: 522, y: 0, w: 10, h: 16, color: TPL.cornerPink },
+      { type: 'rect', x: 513, y: 0, w: 6, h: 16, color: TPL.cornerYellow },
+      { type: 'rect', x: 507, y: 0, w: 3, h: 16, color: TPL.cornerGreen },
+      // past-o'ng
+      { type: 'rect', x: PAGE_W - 16, y: PAGE_H - 60, w: 16, h: 60, color: TPL.cornerYellow },
+      { type: 'rect', x: PAGE_W - 60, y: PAGE_H - 16, w: 60, h: 16, color: TPL.cornerYellow },
+    ],
   }
 }
 
@@ -64,203 +97,306 @@ function gridLayout(lineColor) {
   }
 }
 
-// Harflar qatorini (aralashgan yoki bo'sh) kvadrat kataklar sifatida chizadi.
-function letterRow(letters, { fill, color, line, box = true }) {
+// Yumaloq burchakli harf kataklari qatori. pdfmake jadvallari yumaloq burchak
+// chiza olmaydi, shuning uchun kataklar canvas bilan chiziladi, harflar esa
+// ustidan manfiy margin bilan qo'yiladi — ikkalasi ham bir xil x boshlanishiga
+// ega bo'lgani uchun aniq mos tushadi.
+function boxRow(letters, { filled }) {
+  const boxes = {
+    canvas: letters.map((_, i) => {
+      const rect = {
+        type: 'rect',
+        x: i * BOX_PITCH,
+        y: 0,
+        w: BOX,
+        h: BOX,
+        r: 4,
+        lineWidth: 1,
+        lineColor: filled ? TPL.boxLine : TPL.emptyLine,
+      }
+      if (filled) rect.color = TPL.boxFill
+      return rect
+    }),
+  }
+
+  if (!filled) return boxes
+
+  // Matn canvas ustiga manfiy margin bilan qo'yiladi. Pastki margin ATAYLAB
+  // `up - LINE_H`ga teng: shunda stack balandligi aniq BOX bo'lib qoladi,
+  // aks holda har bir harf qatori 4pt "yutib", keyingi qator ustiga chiqadi.
+  const up = BOX - (BOX - OVERLAY_LINE_H) / 2
+
   return {
-    table: {
-      widths: letters.map(() => CELL),
-      heights: CELL - 4,
-      body: [
-        letters.map((ch) => ({
+    stack: [
+      boxes,
+      {
+        columns: letters.map((ch) => ({
+          width: BOX,
           text: ch || '',
           alignment: 'center',
           bold: true,
           fontSize: 11,
-          color,
-          fillColor: fill,
-          margin: [0, 2, 0, 0],
+          color: TPL.blue,
         })),
-      ],
-    },
-    layout: box ? gridLayout(line) : 'noBorders',
+        columnGap: BOX_GAP,
+        margin: [0, -up, 0, up - OVERLAY_LINE_H],
+      },
+    ],
+  }
+}
+
+// Ustunga sig'maydigan uzun so'zni bir nechta qatorga bo'ladi.
+function chunk(arr, size) {
+  const out = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+const BOXES_PER_ROW = Math.floor((COL_W + BOX_GAP) / BOX_PITCH)
+
+// Varaq sarlavhasi (mavzu + Sana/Ism + ko'k chiziq) va o'yin sarlavhasi
+// egallagandan keyin topshiriqlarga qoladigan taxminiy balandlik.
+const SHEET_CONTENT_H = PAGE_H - 40 - 48 - 38 - 35
+
+/**
+ * Topshiriqlar sahifani to'ldirishi uchun qatorlar orasidagi bo'sh joyni
+ * hisoblaydi — kam elementli tarqatma sahifa yarmida osilib qolmasin.
+ */
+function spreadGap(rowCount, rowHeight, { min = 6, max = 90 } = {}) {
+  if (rowCount <= 0) return min
+  const free = SHEET_CONTENT_H - rowCount * rowHeight
+  return Math.max(min, Math.min(max, free / rowCount))
+}
+
+// Savollar orasidagi nuqtali ajratgich.
+function dottedRule(width = COL_W) {
+  return {
+    canvas: [{
+      type: 'line',
+      x1: 0, y1: 0, x2: width, y2: 0,
+      lineWidth: 0.8,
+      lineColor: TPL.cardLine,
+      dash: { length: 2, space: 2 },
+    }],
+    margin: [0, 10, 0, 10],
   }
 }
 
 // --- muqova / sarlavha --------------------------------------------------------
 
-function coverBlock(input, pal) {
+// "Sana: ______" ko'rinishidagi to'ldiriladigan maydon.
+function blankField(label, lineWidth) {
+  return {
+    width: 'auto',
+    columns: [
+      { width: 'auto', text: label, fontSize: 10, color: TPL.ink, margin: [0, 0, 4, 0] },
+      {
+        width: lineWidth,
+        canvas: [{ type: 'line', x1: 0, y1: 10, x2: lineWidth, y2: 10, lineWidth: 0.8, lineColor: TPL.ink }],
+      },
+    ],
+  }
+}
+
+function coverBlock(input) {
   return [
     {
-      table: {
-        widths: ['*'],
-        body: [
-          [
-            {
-              stack: [
-                { text: input.title ?? '', color: '#FFFFFF', bold: true, fontSize: 20, margin: [0, 0, 0, 3] },
-                {
-                  text: `${input.subjectName ?? ''}  ·  ${input.grade ?? ''}-sinf  ·  Tarqatma material`,
-                  color: '#FFFFFF',
-                  fontSize: 11,
-                  opacity: 0.9,
-                },
-              ],
-              fillColor: pal.cover,
-              margin: [14, 12, 14, 12],
-            },
-          ],
-        ],
-      },
-      layout: 'noBorders',
-      margin: [0, 0, 0, 6],
+      columns: [
+        { width: '*', text: input.title ?? '', bold: true, fontSize: 12, color: TPL.ink },
+        blankField('Sana:', 110),
+        { width: 24, text: '' },
+        blankField('Ism:', 110),
+      ],
+      margin: [0, 0, 0, 9],
     },
     {
-      columns: [
-        { text: 'Ism-familiya: ______________________________', fontSize: 10, color: pal.ink },
-        { text: 'Sana: ______________', fontSize: 10, color: pal.ink, alignment: 'right' },
-      ],
-      margin: [2, 0, 2, 10],
+      canvas: [{ type: 'rect', x: 0, y: 0, w: CONTENT_W, h: 3, r: 1.5, color: TPL.blue }],
+      margin: [0, 0, 0, 14],
     },
   ]
 }
 
-function gameHeader(index, game, pal) {
-  const color = pal.headers[index % pal.headers.length]
-
-  return [
-    {
-      table: {
-        widths: ['auto', '*'],
-        body: [
-          [
-            { text: String(index + 1), color: '#FFFFFF', bold: true, fontSize: 13, fillColor: color, alignment: 'center', margin: [7, 5, 7, 5] },
-            { text: game.title, color: '#FFFFFF', bold: true, fontSize: 13, fillColor: color, margin: [8, 5, 8, 5] },
-          ],
-        ],
-      },
-      layout: 'noBorders',
-      margin: [0, 10, 0, 3],
-      unbreakable: true,
-    },
-    { text: game.instruction ?? '', italics: true, fontSize: 9.5, color: pal.clue, margin: [2, 0, 0, 7] },
+// O'yin nomi va ko'rsatmasi. Referens shablonda rangli raqamli nishon YO'Q —
+// varaq mavzu sarlavhasi bilan boshlanadi, o'yin nomi esa uning ostida
+// yengil ko'k satr bo'lib turadi.
+function gameHeader(game) {
+  const rows = [
+    { text: game.title, bold: true, fontSize: 11.5, color: TPL.blue, margin: [0, 0, 0, 3] },
   ]
-}
 
-// --- o'yinlar -----------------------------------------------------------------
-
-function renderAnagram(game, pal, color) {
-  const rows = []
-
-  for (const [i, item] of game.items.entries()) {
-    const scrambled = String(item.scrambled).split(' ')
-    const blanks = Array.from({ length: item.length }, () => '')
-
-    rows.push({
-      columns: [
-        { width: 16, text: `${i + 1}.`, bold: true, fontSize: 11, color: pal.ink, margin: [0, 4, 0, 0] },
-        { width: 'auto', ...letterRow(scrambled, { fill: pal.chip, color: pal.chipInk, line: pal.line }) },
-        { width: 18, text: '=', alignment: 'center', bold: true, fontSize: 12, color, margin: [0, 3, 0, 0] },
-        { width: 'auto', ...letterRow(blanks, { fill: null, color: pal.ink, line: color }) },
-      ],
-      columnGap: 5,
-      margin: [0, 0, 0, 2],
-    })
-    rows.push({ text: item.clue, fontSize: 9, italics: true, color: pal.clue, margin: [16, 0, 0, 6] })
+  if (game.instruction) {
+    rows.push({ text: game.instruction, italics: true, fontSize: 9.5, color: TPL.clue, margin: [0, 0, 0, 9] })
+  } else {
+    rows.push({ text: '', margin: [0, 0, 0, 5] })
   }
 
   return rows
 }
 
-function renderMatching(game, pal, color) {
-  // Raqam chipini alohida jadval ichida chizamiz — columns ichidagi cell
-  // fillColor'ni matn ostidagi butun katakka bo'yamaydi.
-  const numberChip = (label) => ({
-    table: {
-      widths: [18],
-      body: [[{ text: label, alignment: 'center', bold: true, fontSize: 11, color: '#FFFFFF', fillColor: color, margin: [0, 2, 0, 2] }]],
-    },
-    layout: 'noBorders',
-  })
+// --- o'yinlar -----------------------------------------------------------------
 
-  const leftStack = game.left.map((l) => ({
-    columns: [
-      { width: 22, stack: [numberChip(l.label + '.')] },
-      { width: '*', text: l.term, bold: true, fontSize: 11, color: pal.ink, margin: [4, 3, 0, 0] },
-    ],
-    margin: [0, 0, 0, 8],
-  }))
-
-  const rightStack = game.right.map((r) => ({
-    columns: [
-      { width: 14, text: r.label + ')', bold: true, fontSize: 10, color, margin: [0, 2, 0, 0] },
-      { width: '*', text: r.clue, fontSize: 9.5, color: pal.ink, margin: [2, 0, 0, 0] },
-    ],
-    margin: [0, 0, 0, 8],
-  }))
-
-  return [
+// Bitta anagramma topshirig'i: raqam+izoh, aralashgan harflar, bo'sh javob
+// kataklari va ostidagi nuqtali ajratgich.
+function anagramCell(number, item) {
+  const scrambled = String(item.scrambled).split(' ').filter(Boolean)
+  const blanks = Array.from({ length: item.length }, () => '')
+  const stack = [
     {
-      columns: [
-        { width: '42%', stack: leftStack },
-        { width: '6%', text: '' },
-        { width: '52%', stack: rightStack },
-      ],
-      margin: [0, 0, 0, 4],
+      text: [{ text: `${number}. `, bold: true }, item.clue],
+      fontSize: 10,
+      color: TPL.ink,
+      margin: [0, 0, 0, 7],
     },
   ]
+
+  for (const row of chunk(scrambled, BOXES_PER_ROW)) {
+    stack.push({ ...boxRow(row, { filled: true }), margin: [0, 0, 0, BOX_GAP] })
+  }
+  for (const row of chunk(blanks, BOXES_PER_ROW)) {
+    stack.push({ ...boxRow(row, { filled: false }), margin: [0, 0, 0, BOX_GAP] })
+  }
+
+  stack.push(dottedRule())
+
+  return { width: COL_W, stack }
 }
 
-function renderWordSearch(game, pal, color) {
-  const grid = {
+function renderAnagram(game) {
+  const cells = game.items.map((item, i) => anagramCell(i + 1, item))
+  const rows = []
+
+  // Ikki ustunli to'r — qatorlar juft-juft, shuning uchun ikkala ustundagi
+  // topshiriqlar boshi bir sathda turadi (referens shablondagi kabi).
+  for (let i = 0; i < cells.length; i += 2) {
+    rows.push({
+      columns: [
+        cells[i],
+        { width: 8, text: '' },
+        cells[i + 1] ?? { width: COL_W, text: '' },
+      ],
+    })
+  }
+
+  return rows
+}
+
+// Yumshoq to'ldirilgan quticha — moslashtirish/shifr panellari uchun.
+function softBoxLayout() {
+  return {
+    hLineWidth: () => 1,
+    vLineWidth: () => 1,
+    hLineColor: () => TPL.cardLine,
+    vLineColor: () => TPL.cardLine,
+    paddingLeft: () => 7,
+    paddingRight: () => 7,
+    paddingTop: () => 4,
+    paddingBottom: () => 4,
+  }
+}
+
+function softBox(text, { bold = false, size = 9 } = {}) {
+  return {
     table: {
-      widths: game.grid[0].map(() => CELL),
-      heights: game.grid.map(() => CELL - 3),
+      widths: ['*'],
+      body: [[{ text, bold, fontSize: size, color: TPL.ink, fillColor: TPL.panel }]],
+    },
+    layout: softBoxLayout(),
+  }
+}
+
+// Chiziq tortiladigan ulanish nuqtasi.
+function connectorDot(side) {
+  const dashX1 = side === 'left' ? 0 : 7
+  const dashX2 = side === 'left' ? 7 : 14
+  const cx = side === 'left' ? 10 : 4
+  return {
+    width: 16,
+    canvas: [
+      { type: 'line', x1: dashX1, y1: 11, x2: dashX2, y2: 11, lineWidth: 0.8, lineColor: TPL.emptyLine },
+      { type: 'ellipse', x: cx, y: 11, r1: 2.6, r2: 2.6, lineWidth: 1, lineColor: TPL.blue, color: '#FFFFFF' },
+    ],
+  }
+}
+
+function renderMatching(game) {
+  const rows = []
+  const count = Math.max(game.left.length, game.right.length)
+  // Qatorlar sahifa bo'yicha teng yoyiladi — o'quvchiga chiziq tortishga
+  // joy qoladi va varaq yarmida tugab qolmaydi.
+  const gap = spreadGap(count, 24, { min: 8, max: 64 })
+
+  for (let i = 0; i < count; i++) {
+    const l = game.left[i]
+    const r = game.right[i]
+
+    rows.push({
+      columns: [
+        { width: 14, text: l ? `${l.label}.` : '', bold: true, fontSize: 9.5, color: TPL.ink, margin: [0, 5, 0, 0] },
+        l ? { width: '*', ...softBox(l.term, { bold: true }) } : { width: '*', text: '' },
+        connectorDot('left'),
+        { width: 10, text: '' },
+        connectorDot('right'),
+        r ? { width: '*', ...softBox(r.clue) } : { width: '*', text: '' },
+        { width: 14, text: r ? r.label : '', bold: true, fontSize: 9.5, color: TPL.blue, alignment: 'right', margin: [0, 5, 0, 0] },
+      ],
+      columnGap: 3,
+      margin: [0, 0, 0, gap],
+    })
+  }
+
+  return rows
+}
+
+function renderWordSearch(game) {
+  // Referens shablonda kataklar chegarasiz — butun to'r bitta ingichka ko'k
+  // ramkali panel ichida turadi.
+  // To'r butun kenglikni egallaydi, so'zlar ro'yxati esa ostiga tushadi —
+  // shunda varaq bo'sh qolmaydi va kataklar yozish uchun yetarlicha katta.
+  const cols = game.grid[0].length
+  const rows = game.grid.length
+  const cell = Math.max(14, Math.min(38, Math.floor(Math.min(CONTENT_W / cols, 480 / rows))))
+
+  // Kataklar chegarasiz; ramka faqat to'rning tashqi qirrasida chiziladi.
+  const panel = {
+    table: {
+      widths: game.grid[0].map(() => cell),
+      heights: game.grid.map(() => cell - 4),
       body: game.grid.map((row) =>
         row.map((ch) => ({
           text: ch,
           alignment: 'center',
-          fontSize: 10.5,
-          color: pal.cellInk,
+          fontSize: 9.5,
+          color: TPL.ink,
           margin: [0, 2, 0, 0],
         })),
       ),
     },
-    layout: gridLayout(pal.line),
+    layout: {
+      hLineWidth: (i, node) => (i === 0 || i === node.table.body.length ? 1 : 0),
+      vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length ? 1 : 0),
+      hLineColor: () => TPL.boxLine,
+      vLineColor: () => TPL.boxLine,
+      paddingLeft: () => 1,
+      paddingRight: () => 1,
+      paddingTop: () => 1,
+      paddingBottom: () => 1,
+    },
   }
 
-  // So'zlar ro'yxati — rangli chiplar, ikki ustunda.
-  const chips = game.words.map((w) => ({
-    text: w,
-    fontSize: 10,
-    bold: true,
-    color: pal.chipInk,
-    fillColor: pal.chip,
-    margin: [6, 3, 6, 3],
-  }))
-
-  const half = Math.ceil(chips.length / 2)
-  const chipCol = (arr) => ({
-    stack: arr.map((c) => ({ table: { widths: ['auto'], body: [[c]] }, layout: 'noBorders', margin: [0, 0, 0, 4] })),
+  const chip = (w) => ({
+    table: { widths: ['auto'], body: [[{ text: w, fontSize: 9.5, bold: true, color: TPL.blue, fillColor: TPL.boxFill, margin: [8, 4, 8, 4] }]] },
+    layout: 'noBorders',
+    margin: [0, 0, 0, 6],
   })
 
+  // So'z chiplari to'rt ustunga taqsimlanadi.
+  const chipCols = [[], [], [], []]
+  game.words.forEach((w, i) => chipCols[i % 4].push(chip(w)))
+
   return [
-    {
-      columns: [
-        { width: 'auto', ...grid },
-        { width: 16, text: '' },
-        {
-          width: '*',
-          stack: [
-            { text: 'Topiladigan so’zlar:', bold: true, fontSize: 10, color, margin: [0, 2, 0, 6] },
-            { columns: [chipCol(chips.slice(0, half)), chipCol(chips.slice(half))] },
-          ],
-        },
-      ],
-      margin: [0, 0, 0, 4],
-      // Grid sahifa chegarasida qatorlarga bo'linib, chala/g'alati ko'rinmasin —
-      // yoki butunlay shu sahifaga sig'adi, yoki to'liq keyingi sahifaga o'tadi.
-      unbreakable: true,
-    },
+    { columns: [{ width: 'auto', ...panel }], margin: [0, 0, 0, 16], unbreakable: true },
+    { text: 'Topiladigan so’zlar:', bold: true, fontSize: 10, color: TPL.ink, margin: [0, 0, 0, 8] },
+    { columns: chipCols.map((c) => ({ stack: c })), columnGap: 8 },
   ]
 }
 
@@ -271,13 +407,15 @@ function renderCrossword(game, pal, color) {
       heights: game.grid.map(() => CELL),
       body: game.grid.map((row) =>
         row.map((cell) => {
+          // Referens shablonda so'zga tegishli bo'lmagan kataklar UMUMAN
+          // chizilmaydi — to'r so'zlarning o'z shakli bo'lib ko'rinadi.
           if (cell === null) {
-            return { text: '', fillColor: pal.block }
+            return { text: '', border: [false, false, false, false] }
           }
           return {
             text: cell.number ? String(cell.number) : '',
             fontSize: 6,
-            color: color,
+            color: TPL.blue,
             alignment: 'left',
             margin: [1.5, 0.5, 0, 0],
           }
@@ -356,9 +494,11 @@ function renderCodeCracker(game, pal, color) {
 
   content.push({ text: '', margin: [0, 4, 0, 0] })
 
+  const gap = spreadGap(game.items.length, 56, { min: 6, max: 56 })
+
   game.items.forEach((it, i) => {
-    content.push({ text: `${i + 1}. ${it.clue}`, fontSize: 10, color: pal.ink, margin: [0, 6, 0, 3] })
-    content.push({ columns: [{ width: 'auto', ...codeBox(it.codes, pal, color) }], margin: [0, 0, 0, 2] })
+    content.push({ text: `${i + 1}. ${it.clue}`, fontSize: 10, color: pal.ink, margin: [0, 6, 0, 4] })
+    content.push({ columns: [{ width: 'auto', ...codeBox(it.codes, pal, color) }], margin: [0, 0, 0, gap] })
   })
 
   return content
@@ -367,22 +507,38 @@ function renderCodeCracker(game, pal, color) {
 // --- matematik amallar varag'i (mathworksheet) ----------------------------
 
 function renderMathWorksheet(game, pal, color) {
+  // Misol kam bo'lsa ustunlarni kamaytiramiz — qator ko'payib, varaq
+  // teng to'ladi va har bir misolga yozish uchun kengroq joy qoladi.
+  const cols = game.items.length <= 12 ? 3 : 4
+  const gutter = 12
+  // Chiziq aynan o'ng tomonga tekislangan sonlar ostidan o'tishi uchun
+  // katak kengligidan hisoblanadi.
+  const cellW = (CONTENT_W - (cols - 1) * gutter) / cols - gutter
+
   const cell = (it, i) => ({
     stack: [
       { text: `${i + 1})`, bold: true, fontSize: 9.5, color, margin: [0, 0, 0, 2] },
       { text: String(it.a), alignment: 'right', fontSize: 12, color: pal.ink },
-      { text: `${game.symbol} ${it.b}`, alignment: 'right', fontSize: 12, color: pal.ink, margin: [0, 0, 0, 3] },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 75, y2: 0, lineWidth: 1, lineColor: pal.line }] },
+      {
+        text: [{ text: game.symbol, color: TPL.blue }, ` ${it.b}`],
+        alignment: 'right',
+        fontSize: 12,
+        color: pal.ink,
+        margin: [0, 0, 0, 3],
+      },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: cellW, y2: 0, lineWidth: 1, lineColor: pal.line }] },
     ],
-    margin: [0, 0, 12, 16],
+    margin: [0, 0, gutter, 0],
   })
 
-  const cols = 4
+  const rowCount = Math.ceil(game.items.length / cols)
+  const gap = spreadGap(rowCount, 52, { min: 16, max: 200 })
   const rows = []
+
   for (let i = 0; i < game.items.length; i += cols) {
     const rowItems = game.items.slice(i, i + cols).map((it, j) => cell(it, i + j))
     while (rowItems.length < cols) rowItems.push({ text: '' })
-    rows.push({ columns: rowItems })
+    rows.push({ columns: rowItems, margin: [0, 0, 0, gap] })
   }
 
   return rows
@@ -390,6 +546,8 @@ function renderMathWorksheet(game, pal, color) {
 
 // "To'g'ri tartib" — aralashgan bosqichlar ro'yxati, har biriga qutili raqam joyi.
 function renderSequence(game, pal, color) {
+  const gap = spreadGap(game.items.length, 22, { min: 8, max: 64 })
+
   const rows = game.items.map((it) => ({
     columns: [
       // Chapdan chip: harf yorlig'i (A/B/C...).
@@ -414,7 +572,7 @@ function renderSequence(game, pal, color) {
         layout: gridLayout(color),
       },
     ],
-    margin: [0, 0, 0, 8],
+    margin: [0, 0, 0, gap],
   }))
 
   return rows
@@ -422,6 +580,8 @@ function renderSequence(game, pal, color) {
 
 // "To'g'ri yoki noto'g'ri" — atama+ta'rif juftliklari, har biri yoniga T/N kataklari.
 function renderTrueFalse(game, pal, color) {
+  const gap = spreadGap(game.items.length, 40, { min: 8, max: 56 })
+
   const rows = game.items.map((it) => ({
     columns: [
       { width: 20, text: `${it.number}.`, bold: true, fontSize: 11, color: pal.ink, margin: [0, 4, 0, 0] },
@@ -446,7 +606,7 @@ function renderTrueFalse(game, pal, color) {
       },
     ],
     columnGap: 8,
-    margin: [0, 0, 0, 8],
+    margin: [0, 0, 0, gap],
   }))
 
   return rows
@@ -505,15 +665,24 @@ function renderFlashcard(game, pal, color) {
 // --- taqqoslash varag'i (compare) -----------------------------------------------
 
 function renderCompareSheet(game, pal, color) {
+  const maxItems = Math.max((game.left.items ?? []).length, (game.right.items ?? []).length)
+  const gap = spreadGap(maxItems, 20, { min: 10, max: 150 })
+
   const column = (side, headColor) => ({
     width: '48%',
     stack: [
       {
         table: { widths: ['*'], body: [[{ text: side.heading ?? '', bold: true, fontSize: 11, color: '#FFFFFF', fillColor: headColor, margin: [8, 5, 8, 5] }]] },
         layout: 'noBorders',
-        margin: [0, 0, 0, 6],
+        margin: [0, 0, 0, 10],
       },
-      { ul: side.items ?? [], fontSize: 10.5, color: pal.ink, margin: [0, 0, 0, 0] },
+      ...(side.items ?? []).map((it) => ({
+        stack: [
+          { text: `•  ${it}`, fontSize: 10.5, color: pal.ink, margin: [0, 0, 0, 6] },
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: COL_W - 10, y2: 0, lineWidth: 0.8, lineColor: TPL.cardLine, dash: { length: 2, space: 2 } }] },
+        ],
+        margin: [0, 0, 0, gap],
+      })),
     ],
   })
 
@@ -550,25 +719,20 @@ function renderGrammarTable(game, pal, color) {
   ]
 }
 
-function renderGame(index, game, pal) {
-  const color = pal.headers[index % pal.headers.length]
+function renderGame(index, game, pal, input) {
+  const color = pal.headers[0]
   const content = []
 
-  // So'z izlash/krossvord grid'lari katta va `columns` ichidagi jadval
-  // uchun `unbreakable` ishonchli ishlamaydi (grid baribir sahifa
-  // chegarasida bo'linib qolgan edi). Shu sabab bu turlar doim yangi
-  // sahifadan boshlanadi — alohida bo'sh pageBreak belgisi bilan (xuddi
-  // renderAnswerKey'dagi kabi — bitta tugunga unbreakable+pageBreak'ni
-  // birga qo'yish e'tiborga olinmay qolgan edi). Kartochkalar/taqqoslash/
-  // grammatika ham shu ro'yxatda — ular oldingi blokning oxiri bilan bir
-  // sahifada qisilib, chala-chulpa ko'rinib qolgan edi (masalan Kartochkalar
-  // orqa tomoni bilan Taqqoslash varag'i bitta betda tiqilishib qolardi).
-  const forceNewPage = ['wordsearch', 'crossword', 'flashcard', 'compare', 'grammar', 'mathworksheet']
-  if (index > 0 && forceNewPage.includes(game.type)) {
+  // Referens shablonda har bir tarqatma — MUSTAQIL varaq. Shuning uchun har
+  // bir o'yin yangi sahifadan boshlanadi va o'z sarlavha blokini (mavzu nomi,
+  // Sana/Ism, ko'k ajratgich) qaytaradi. Yon ta'siri: katta so'z izlash va
+  // krossvord to'rlari sahifa chegarasida bo'linib qolmaydi.
+  if (index > 0) {
     content.push({ text: '', pageBreak: 'before' })
   }
 
-  content.push(...gameHeader(index, game, pal))
+  content.push(...coverBlock(input))
+  content.push(...gameHeader(game))
 
   if (game.type === 'anagram') content.push(...renderAnagram(game, pal, color))
   else if (game.type === 'matching') content.push(...renderMatching(game, pal, color))
@@ -618,12 +782,13 @@ function renderAnswerKey(answerKey, pal) {
  * @returns {Promise<Buffer>}
  */
 export async function buildHandoutPdf(input) {
-  const pal = resolvePalette(input.grade_band ?? 'senior', input.theme)
-  const content = [...coverBlock(input, pal)]
+  const pal = resolvePalette()
+  const content = []
 
   const games = input.games ?? []
 
   if (games.length === 0) {
+    content.push(...coverBlock(input))
     content.push({
       text: 'Bu dars uchun o’yinli topshiriqlar tayyorlanmadi.',
       italics: true,
@@ -631,12 +796,20 @@ export async function buildHandoutPdf(input) {
       margin: [0, 20, 0, 0],
     })
   } else {
-    games.forEach((game, i) => content.push(...renderGame(i, game, pal)))
+    games.forEach((game, i) => content.push(...renderGame(i, game, pal, input)))
     content.push(...renderAnswerKey(input.answer_key, pal))
   }
 
   return renderPdf({
     content,
+    pageMargins: [MARGIN, 40, MARGIN, 48],
+    background: pageFrame,
     defaultStyle: { font: 'Roboto', fontSize: 11 },
+    footer: (currentPage, pageCount) => ({
+      columns: [
+        { text: 'ustoz.ai orqali tayyorlangan', fontSize: 8.5, color: TPL.muted, margin: [MARGIN, 12, 0, 0] },
+        { text: `${currentPage} / ${pageCount}`, fontSize: 8.5, color: TPL.muted, alignment: 'right', margin: [0, 12, MARGIN, 0] },
+      ],
+    }),
   })
 }
