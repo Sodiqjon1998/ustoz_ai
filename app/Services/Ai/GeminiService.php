@@ -297,7 +297,7 @@ class GeminiService
         return <<<PROMPT
 Sen tajribali, o'quvchilarni qiziqtira oladigan {$subjectName} o'qituvchisisan. {$grade}-sinf o'quvchilari uchun "{$topic}" mavzusida {$duration} daqiqalik bitta darsga to'liq, rasmiy dars ishlanmasi (konspekt) darajasidagi material tayyorla.
 
-MUHIM: quyidagi ko'rsatmalar shu tilda (o'zbek tilida) yozilgan, lekin javobingdagi BARCHA kontent (matnlar, savollar, slaydlar) {$languageName} tilida bo'lishi SHART.
+MUHIM: quyidagi ko'rsatmalar shu tilda (o'zbek tilida) yozilgan, lekin javobingdagi BARCHA kontent {$languageName} tilida bo'lishi SHART. Bu ISTISNOSIZ hamma maydonga tegishli: matnlar, savollar, slaydlar, bosqich nomlari, uy vazifasi, jihozlar VA "key_terms" ichidagi har bir "term" va "clue" ham. Ko'rsatmalar o'zbekcha yozilgani seni chalg'itmasin — javobingda birorta ham o'zbekcha so'z bo'lmasin (agar dars tili o'zbek bo'lmasa).
 
 <user_topic>{$topic}</user_topic>
 
@@ -394,7 +394,8 @@ Quyidagi tuzilmani to'ldir:
    - "term" faqat harflardan iborat bo'lsin (raqam, belgi yo'q). 3-12 harf orasida.
    - "clue" — o'sha atamaga ANIQ ishora qiluvchi qisqa savol yoki ta'rif (1 gap), lekin atamaning O'ZINI ichida takrorlamasin (aks holda javob ochilib qoladi).
    - "clue" ichida HTML teg (<sup>, <sub>, <b>, <br> va h.k.) BO'LMASIN — tarqatma PDF teglarni tanimaydi, ular "<sup>" bo'lib tom ma'noda chiqadi. Daraja kerak bo'lsa "a^2", indeks kerak bo'lsa "log_a b" ko'rinishida oddiy matn bilan yoz.
-   - Atamalar mavzuning asosiy tushunchalari bo'lsin — o'quvchi darsdan bilib chiqishi kerak bo'lgan so'zlar.{$keyTermsExtra}{$grammarSection}
+   - Atamalar mavzuning asosiy tushunchalari bo'lsin — o'quvchi darsdan bilib chiqishi kerak bo'lgan so'zlar.
+   - "term" ham, "clue" ham {$languageName} tilida bo'lsin. Masalan dars tili rus bo'lsa "term": "ПЕРИМЕТР", "clue": "Общая длина внешней границы фигуры." — o'zbekcha yoki inglizcha ARALASHTIRMA.{$keyTermsExtra}{$grammarSection}
 
 Javobni FAQAT quyidagi JSON shakliga ANIQ mos formatda qaytar, boshqa hech qanday matn (izoh, markdown ```json belgisi va h.k.) yozma:
 
