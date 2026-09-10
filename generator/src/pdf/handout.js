@@ -27,6 +27,69 @@ const OVERLAY_LINE_H = 12.9
 
 const CELL = 16 // so'z izlash / krossvord grid katagi
 
+// Varaqdagi STATIK yorliqlar dars tiliga tarjima qilinadi — atama/ta'riflar
+// AI'dan o'sha tilda keladi, lekin bu satrlar qattiq kodlangan edi.
+// ky/tg/kaa uchun ataylab tarjima yo'q — o'zbekchaga qaytadi.
+const LABELS = {
+  uz: {
+    date: 'Sana:',
+    name: 'Ism:',
+    findWords: 'Topiladigan so’zlar:',
+    cipherKey: 'Shifr kaliti:',
+    yes: 'T',
+    no: 'N',
+    front: 'OLD TOMON',
+    back: 'ORQA TOMON',
+    answerKey: 'Javoblar kaliti (o’qituvchi uchun)',
+    noGames: 'Bu dars uchun o’yinli topshiriqlar tayyorlanmadi.',
+    footer: 'ustoz.ai orqali tayyorlangan',
+    across: 'Gorizontal',
+    down: 'Vertikal',
+    grammar: ['Shakl', 'Tuzilma', 'Misol'],
+  },
+  ru: {
+    date: 'Дата:',
+    name: 'Имя:',
+    findWords: 'Найдите слова:',
+    cipherKey: 'Ключ шифра:',
+    yes: 'В',
+    no: 'Н',
+    front: 'ЛИЦЕВАЯ СТОРОНА',
+    back: 'ОБРАТНАЯ СТОРОНА',
+    answerKey: 'Ключ ответов (для учителя)',
+    noGames: 'Для этого урока игровые задания не подготовлены.',
+    footer: 'подготовлено через ustoz.ai',
+    across: 'По горизонтали',
+    down: 'По вертикали',
+    grammar: ['Форма', 'Структура', 'Пример'],
+  },
+  en: {
+    date: 'Date:',
+    name: 'Name:',
+    findWords: 'Words to find:',
+    cipherKey: 'Cipher key:',
+    yes: 'T',
+    no: 'F',
+    front: 'FRONT',
+    back: 'BACK',
+    answerKey: 'Answer key (for teacher)',
+    noGames: 'No game tasks were prepared for this lesson.',
+    footer: 'prepared with ustoz.ai',
+    across: 'Across',
+    down: 'Down',
+    grammar: ['Form', 'Structure', 'Example'],
+  },
+}
+
+// Joriy varaq tili. buildHandoutPdf() boshida o'rnatiladi va butun kontent
+// SINXRON quriladi (hech qayerda await yo'q), shuning uchun bir vaqtda kelgan
+// ikkinchi so'rov oraga tushib qiymatni almashtira olmaydi.
+let LANG = 'uz'
+
+function L(key) {
+  return (LABELS[LANG] ?? LABELS.uz)[key] ?? LABELS.uz[key]
+}
+
 // Shablon palitrasi — barcha tarqatmalar uchun bitta, o'zgarmas.
 const TPL = {
   blue: '#3A96FF', // ajratgich chizig'i, aksent
@@ -165,7 +228,10 @@ const SHEET_CONTENT_H = PAGE_H - 40 - 48 - 38 - 35
 function spreadGap(rowCount, rowHeight, { min = 6, max = 90 } = {}) {
   if (rowCount <= 0) return min
   const free = SHEET_CONTENT_H - rowCount * rowHeight
-  return Math.max(min, Math.min(max, free / rowCount))
+  // Bo'sh joy (rowCount + 1) ga bo'linadi, rowCount ga emas: oxirgi qatordan
+  // keyin ham chekka qoladi. Aks holda jami balandlik sahifani AYNAN to'ldirib,
+  // oxirgi marginni keyingi betga surib yuborardi (bo'sh sahifa paydo bo'lardi).
+  return Math.max(min, Math.min(max, free / (rowCount + 1)))
 }
 
 // Savollar orasidagi nuqtali ajratgich.
@@ -203,9 +269,9 @@ function coverBlock(input) {
     {
       columns: [
         { width: '*', text: input.title ?? '', bold: true, fontSize: 12, color: TPL.ink },
-        blankField('Sana:', 110),
+        blankField(L('date'), 110),
         { width: 24, text: '' },
-        blankField('Ism:', 110),
+        blankField(L('name'), 110),
       ],
       margin: [0, 0, 0, 9],
     },
@@ -340,7 +406,7 @@ function renderMatching(game) {
         { width: 14, text: r ? r.label : '', bold: true, fontSize: 9.5, color: TPL.blue, alignment: 'right', margin: [0, 5, 0, 0] },
       ],
       columnGap: 3,
-      margin: [0, 0, 0, gap],
+      margin: [0, 0, 0, i === count - 1 ? 0 : gap],
     })
   }
 
@@ -395,7 +461,7 @@ function renderWordSearch(game) {
 
   return [
     { columns: [{ width: 'auto', ...panel }], margin: [0, 0, 0, 16], unbreakable: true },
-    { text: 'Topiladigan so’zlar:', bold: true, fontSize: 10, color: TPL.ink, margin: [0, 0, 0, 8] },
+    { text: L('findWords'), bold: true, fontSize: 10, color: TPL.ink, margin: [0, 0, 0, 8] },
     { columns: chipCols.map((c) => ({ stack: c })), columnGap: 8 },
   ]
 }
@@ -442,9 +508,9 @@ function renderCrossword(game, pal, color) {
     { columns: [{ width: 'auto', ...grid }], margin: [0, 0, 0, 8], unbreakable: true },
     {
       columns: [
-        game.across.length ? clueList('Gorizontal', game.across) : { width: '*', text: '' },
+        game.across.length ? clueList(L('across'), game.across) : { width: '*', text: '' },
         { width: 14, text: '' },
-        game.down.length ? clueList('Vertikal', game.down) : { width: '*', text: '' },
+        game.down.length ? clueList(L('down'), game.down) : { width: '*', text: '' },
       ],
     },
   ]
@@ -485,7 +551,7 @@ function chunkArray(arr, size) {
 
 function renderCodeCracker(game, pal, color) {
   const content = [
-    { text: 'Shifr kaliti — ochiq harflardan foydalanib, kodlarni yeching:', bold: true, fontSize: 9.5, color: pal.clue, margin: [0, 0, 0, 4] },
+    { text: L('cipherKey'), bold: true, fontSize: 9.5, color: pal.clue, margin: [0, 0, 0, 4] },
   ]
 
   for (const row of chunkArray(game.key, 13)) {
@@ -498,7 +564,7 @@ function renderCodeCracker(game, pal, color) {
 
   game.items.forEach((it, i) => {
     content.push({ text: `${i + 1}. ${it.clue}`, fontSize: 10, color: pal.ink, margin: [0, 6, 0, 4] })
-    content.push({ columns: [{ width: 'auto', ...codeBox(it.codes, pal, color) }], margin: [0, 0, 0, gap] })
+    content.push({ columns: [{ width: 'auto', ...codeBox(it.codes, pal, color) }], margin: [0, 0, 0, i === game.items.length - 1 ? 0 : gap] })
   })
 
   return content
@@ -538,7 +604,7 @@ function renderMathWorksheet(game, pal, color) {
   for (let i = 0; i < game.items.length; i += cols) {
     const rowItems = game.items.slice(i, i + cols).map((it, j) => cell(it, i + j))
     while (rowItems.length < cols) rowItems.push({ text: '' })
-    rows.push({ columns: rowItems, margin: [0, 0, 0, gap] })
+    rows.push({ columns: rowItems, margin: [0, 0, 0, i + cols >= game.items.length ? 0 : gap] })
   }
 
   return rows
@@ -548,7 +614,7 @@ function renderMathWorksheet(game, pal, color) {
 function renderSequence(game, pal, color) {
   const gap = spreadGap(game.items.length, 22, { min: 8, max: 64 })
 
-  const rows = game.items.map((it) => ({
+  const rows = game.items.map((it, i) => ({
     columns: [
       // Chapdan chip: harf yorlig'i (A/B/C...).
       {
@@ -572,7 +638,7 @@ function renderSequence(game, pal, color) {
         layout: gridLayout(color),
       },
     ],
-    margin: [0, 0, 0, gap],
+    margin: [0, 0, 0, i === game.items.length - 1 ? 0 : gap],
   }))
 
   return rows
@@ -582,7 +648,7 @@ function renderSequence(game, pal, color) {
 function renderTrueFalse(game, pal, color) {
   const gap = spreadGap(game.items.length, 40, { min: 8, max: 56 })
 
-  const rows = game.items.map((it) => ({
+  const rows = game.items.map((it, i) => ({
     columns: [
       { width: 20, text: `${it.number}.`, bold: true, fontSize: 11, color: pal.ink, margin: [0, 4, 0, 0] },
       {
@@ -598,15 +664,15 @@ function renderTrueFalse(game, pal, color) {
           widths: [22, 22],
           heights: [18],
           body: [[
-            { text: 'T', alignment: 'center', bold: true, fontSize: 11, color },
-            { text: 'N', alignment: 'center', bold: true, fontSize: 11, color },
+            { text: L('yes'), alignment: 'center', bold: true, fontSize: 11, color },
+            { text: L('no'), alignment: 'center', bold: true, fontSize: 11, color },
           ]],
         },
         layout: gridLayout(color),
       },
     ],
     columnGap: 8,
-    margin: [0, 0, 0, gap],
+    margin: [0, 0, 0, i === game.items.length - 1 ? 0 : gap],
   }))
 
   return rows
@@ -654,10 +720,10 @@ function cardGrid(items, pal, color, side) {
 
 function renderFlashcard(game, pal, color) {
   return [
-    { text: 'OLD TOMON', bold: true, fontSize: 9, color: pal.clue, margin: [0, 0, 0, 4] },
+    { text: L('front'), bold: true, fontSize: 9, color: pal.clue, margin: [0, 0, 0, 4] },
     cardGrid(game.items, pal, color, 'front'),
     { text: '', pageBreak: 'before' },
-    { text: 'ORQA TOMON', bold: true, fontSize: 9, color: pal.clue, margin: [0, 0, 0, 4] },
+    { text: L('back'), bold: true, fontSize: 9, color: pal.clue, margin: [0, 0, 0, 4] },
     cardGrid(game.items, pal, color, 'back'),
   ]
 }
@@ -676,12 +742,12 @@ function renderCompareSheet(game, pal, color) {
         layout: 'noBorders',
         margin: [0, 0, 0, 10],
       },
-      ...(side.items ?? []).map((it) => ({
+      ...(side.items ?? []).map((it, i) => ({
         stack: [
           { text: `•  ${it}`, fontSize: 10.5, color: pal.ink, margin: [0, 0, 0, 6] },
           { canvas: [{ type: 'line', x1: 0, y1: 0, x2: COL_W - 10, y2: 0, lineWidth: 0.8, lineColor: TPL.cardLine, dash: { length: 2, space: 2 } }] },
         ],
-        margin: [0, 0, 0, gap],
+        margin: [0, 0, 0, i === (side.items ?? []).length - 1 ? 0 : gap],
       })),
     ],
   })
@@ -696,7 +762,7 @@ function renderCompareSheet(game, pal, color) {
 // --- grammatika jadvali (grammar) -----------------------------------------------
 
 function renderGrammarTable(game, pal, color) {
-  const header = ['Shakl', 'Tuzilma', 'Misol'].map((h) => ({
+  const header = L('grammar').map((h) => ({
     text: h,
     bold: true,
     fontSize: 10,
@@ -767,7 +833,7 @@ function renderAnswerKey(answerKey, pal) {
 
   return [
     { text: '', pageBreak: 'before' },
-    { text: 'Javoblar kaliti (o’qituvchi uchun)', bold: true, fontSize: 12, color: pal.cover, margin: [0, 0, 0, 8] },
+    { text: L('answerKey'), bold: true, fontSize: 12, color: pal.cover, margin: [0, 0, 0, 8] },
     ...rows,
   ]
 }
@@ -782,6 +848,7 @@ function renderAnswerKey(answerKey, pal) {
  * @returns {Promise<Buffer>}
  */
 export async function buildHandoutPdf(input) {
+  LANG = LABELS[input.language] ? input.language : 'uz'
   const pal = resolvePalette()
   const content = []
 
@@ -790,7 +857,7 @@ export async function buildHandoutPdf(input) {
   if (games.length === 0) {
     content.push(...coverBlock(input))
     content.push({
-      text: 'Bu dars uchun o’yinli topshiriqlar tayyorlanmadi.',
+      text: L('noGames'),
       italics: true,
       color: pal.clue,
       margin: [0, 20, 0, 0],
@@ -807,7 +874,7 @@ export async function buildHandoutPdf(input) {
     defaultStyle: { font: 'Roboto', fontSize: 11 },
     footer: (currentPage, pageCount) => ({
       columns: [
-        { text: 'ustoz.ai orqali tayyorlangan', fontSize: 8.5, color: TPL.muted, margin: [MARGIN, 12, 0, 0] },
+        { text: L('footer'), fontSize: 8.5, color: TPL.muted, margin: [MARGIN, 12, 0, 0] },
         { text: `${currentPage} / ${pageCount}`, fontSize: 8.5, color: TPL.muted, alignment: 'right', margin: [0, 12, MARGIN, 0] },
       ],
     }),

@@ -215,6 +215,7 @@ class LessonController extends Controller
                     $data['duration'],
                     $content,
                     $games,
+                    $data['language'],
                 );
 
                 $render = $generatorClient->renderPdfHandout($handout);

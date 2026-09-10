@@ -34,8 +34,141 @@ class HandoutBuilder
      */
     public const MATH_GAME = 'mathworksheet';
 
-    public function build(string $topic, string $subjectName, string $themeKey, int $grade, int $duration, array $content, array $selectedGames = []): array
+    /**
+     * Tarqatmadagi STATIK matnlar (o'yin nomi, ko'rsatma, javob kaliti
+     * yorliqlari) dars tiliga tarjima qilinadi — atama/ta'riflar AI'dan
+     * allaqachon o'sha tilda keladi, lekin bu satrlar qattiq kodlangan edi va
+     * ruscha darsda ham o'zbekcha chiqib qolardi.
+     * ky/tg/kaa uchun ataylab tarjima yozilmagan — noto'g'ri tarjimadan ko'ra
+     * o'zbekchaga qaytish tushunarliroq (bular o'zbekchaga eng yaqin tillar).
+     */
+    private const STRINGS = [
+        'uz' => [
+            'anagram.title' => 'Anagramma',
+            'anagram.instruction' => "Harflar aralashib ketgan. Ularni to'g'ri tartibga solib, so'zni top.",
+            'matching.title' => 'Moslashtirish',
+            'matching.instruction' => "Chap ustundagi har bir atamani o'ng ustundagi mos ta'rifi bilan chiziq orqali birlashtir.",
+            'wordsearch.title' => "So'z izlash",
+            'wordsearch.instruction' => "Jadvaldan quyidagi so'zlarni top va ustidan chiz. So'zlar gorizontal, vertikal yoki diagonal bo'lishi mumkin.",
+            'crossword.title' => 'Krossvord',
+            'crossword.instruction' => "Ta'riflar bo'yicha so'zlarni top va katakchalarga yoz.",
+            'crossword.across' => 'gorizontal',
+            'crossword.down' => 'vertikal',
+            'codecracker.title' => 'Kod ochish',
+            'codecracker.instruction' => "Shifr kaliti — ochiq harflardan foydalanib, so'zlarning kodini yeching.",
+            'codecracker.key' => 'shifr kaliti',
+            'codecracker.words' => "so'zlar",
+            'math.add' => "Qo'shish",
+            'math.sub' => 'Ayirish',
+            'math.mul' => "Ko'paytirish",
+            'math.div' => "Bo'lish",
+            'math.instruction' => 'Misollarni yeching.',
+            'math.digits' => ':n xonali sonlar',
+            'math.digits_mul' => ':ax:b xonali sonlar',
+            'math.div_label' => "qoldiqsiz bo'lish",
+            'sequence.title' => "To'g'ri tartib",
+            'sequence.instruction' => "Dars bosqichlari aralashtirilgan. To'g'ri ketma-ketlikni belgilab, har biri yoniga tartib raqamini (1, 2, 3...) yoz.",
+            'truefalse.title' => "To'g'ri yoki noto'g'ri?",
+            'truefalse.instruction' => 'Har bir juftlikni o\'qi. Atama va ta\'rif to\'g\'ri mos kelsa "T", mos kelmasa "N" deb belgila.',
+            'flashcard.title' => 'Kartochkalar',
+            'flashcard.instruction_translation' => "Sahifalarni kesib, ikki tomonlama kartochka yasang: bir tomonda so'z, ikkinchi tomonda tarjimasi.",
+            'flashcard.instruction_term' => "Sahifalarni kesib, ikki tomonlama kartochka yasang: bir tomonda atama, ikkinchi tomonda ta'rif.",
+            'compare.title' => "Taqqoslash varag'i",
+            'compare.instruction' => 'Ikki tomonni solishtiring.',
+            'grammar.title' => 'Grammatika jadvali',
+            'grammar.instruction' => "Qoidani va misolni o'rganib chiq.",
+        ],
+        'ru' => [
+            'anagram.title' => 'Анаграмма',
+            'anagram.instruction' => 'Буквы перепутаны. Расставь их по порядку и найди слово.',
+            'matching.title' => 'Соответствие',
+            'matching.instruction' => 'Соедини линией каждый термин в левом столбце с подходящим определением в правом.',
+            'wordsearch.title' => 'Поиск слов',
+            'wordsearch.instruction' => 'Найди в таблице слова из списка и зачеркни их. Слова могут идти по горизонтали, вертикали или диагонали.',
+            'crossword.title' => 'Кроссворд',
+            'crossword.instruction' => 'Отгадай слова по определениям и впиши их в клетки.',
+            'crossword.across' => 'по горизонтали',
+            'crossword.down' => 'по вертикали',
+            'codecracker.title' => 'Расшифруй код',
+            'codecracker.instruction' => 'Ключ шифра — используя открытые буквы, расшифруй коды слов.',
+            'codecracker.key' => 'ключ шифра',
+            'codecracker.words' => 'слова',
+            'math.add' => 'Сложение',
+            'math.sub' => 'Вычитание',
+            'math.mul' => 'Умножение',
+            'math.div' => 'Деление',
+            'math.instruction' => 'Решите примеры.',
+            'math.digits' => ':n-значные числа',
+            'math.digits_mul' => ':ax:b-значные числа',
+            'math.div_label' => 'деление без остатка',
+            'sequence.title' => 'Правильный порядок',
+            'sequence.instruction' => 'Этапы урока перепутаны. Определи правильную последовательность и поставь рядом с каждым порядковый номер (1, 2, 3...).',
+            'truefalse.title' => 'Верно или неверно?',
+            'truefalse.instruction' => 'Прочитай каждую пару. Если термин и определение совпадают — отметь «В», если нет — «Н».',
+            'flashcard.title' => 'Карточки',
+            'flashcard.instruction_translation' => 'Разрежь страницы и сделай двусторонние карточки: с одной стороны слово, с другой — перевод.',
+            'flashcard.instruction_term' => 'Разрежь страницы и сделай двусторонние карточки: с одной стороны термин, с другой — определение.',
+            'compare.title' => 'Лист сравнения',
+            'compare.instruction' => 'Сравни две стороны.',
+            'grammar.title' => 'Таблица грамматики',
+            'grammar.instruction' => 'Изучи правило и пример.',
+        ],
+        'en' => [
+            'anagram.title' => 'Anagram',
+            'anagram.instruction' => 'The letters are scrambled. Put them in the right order and find the word.',
+            'matching.title' => 'Matching',
+            'matching.instruction' => 'Draw a line from each term in the left column to its matching definition on the right.',
+            'wordsearch.title' => 'Word Search',
+            'wordsearch.instruction' => 'Find the words from the list in the grid and cross them out. Words may run horizontally, vertically or diagonally.',
+            'crossword.title' => 'Crossword',
+            'crossword.instruction' => 'Work out the words from the clues and write them in the boxes.',
+            'crossword.across' => 'across',
+            'crossword.down' => 'down',
+            'codecracker.title' => 'Code Cracker',
+            'codecracker.instruction' => 'Cipher key — use the revealed letters to crack the coded words.',
+            'codecracker.key' => 'cipher key',
+            'codecracker.words' => 'words',
+            'math.add' => 'Addition',
+            'math.sub' => 'Subtraction',
+            'math.mul' => 'Multiplication',
+            'math.div' => 'Division',
+            'math.instruction' => 'Solve the problems.',
+            'math.digits' => ':n-digit numbers',
+            'math.digits_mul' => ':ax:b-digit numbers',
+            'math.div_label' => 'division without remainder',
+            'sequence.title' => 'Correct Order',
+            'sequence.instruction' => 'The lesson stages are shuffled. Work out the correct sequence and write the order number (1, 2, 3...) next to each.',
+            'truefalse.title' => 'True or False?',
+            'truefalse.instruction' => 'Read each pair. If the term and definition match, mark "T"; if not, mark "F".',
+            'flashcard.title' => 'Flashcards',
+            'flashcard.instruction_translation' => 'Cut out the pages and make double-sided cards: the word on one side, its translation on the other.',
+            'flashcard.instruction_term' => 'Cut out the pages and make double-sided cards: the term on one side, its definition on the other.',
+            'compare.title' => 'Comparison Sheet',
+            'compare.instruction' => 'Compare the two sides.',
+            'grammar.title' => 'Grammar Table',
+            'grammar.instruction' => 'Study the rule and the example.',
+        ],
+    ];
+
+    /** Joriy dars tili — build() da o'rnatiladi. */
+    private string $lang = 'uz';
+
+    /** Statik matnni joriy dars tilida qaytaradi (topilmasa o'zbekchaga qaytadi). */
+    private function t(string $key, array $replace = []): string
     {
+        $text = self::STRINGS[$this->lang][$key] ?? self::STRINGS['uz'][$key] ?? $key;
+
+        foreach ($replace as $from => $to) {
+            $text = str_replace(':'.$from, (string) $to, $text);
+        }
+
+        return $text;
+    }
+
+    public function build(string $topic, string $subjectName, string $themeKey, int $grade, int $duration, array $content, array $selectedGames = [], string $language = 'uz'): array
+    {
+        $this->lang = isset(self::STRINGS[$language]) ? $language : 'uz';
+
         $terms = $this->cleanTerms((array) ($content['key_terms'] ?? []));
         $phases = $this->cleanPhases((array) ($content['phases'] ?? []));
         $slides = (array) ($content['slides'] ?? []);
@@ -57,6 +190,7 @@ class HandoutBuilder
             'grade' => $grade,
             'duration' => $duration,
             'grade_band' => $gradeBand,
+            'language' => $this->lang,
             'objective' => (string) ($content['objective_main'] ?? ''),
             'games' => $games,
             // O'qituvchi uchun javoblar kaliti — o'yinlarning yechimi.
@@ -204,8 +338,8 @@ class HandoutBuilder
 
         return [
             'type' => 'anagram',
-            'title' => 'Anagramma',
-            'instruction' => "Harflar aralashib ketgan. Ularni to'g'ri tartibga solib, so'zni top.",
+            'title' => $this->t('anagram.title'),
+            'instruction' => $this->t('anagram.instruction'),
             'items' => $items,
         ];
     }
@@ -261,8 +395,8 @@ class HandoutBuilder
 
         return [
             'type' => 'matching',
-            'title' => 'Moslashtirish',
-            'instruction' => "Chap ustundagi har bir atamani o'ng ustundagi mos ta'rifi bilan chiziq orqali birlashtir.",
+            'title' => $this->t('matching.title'),
+            'instruction' => $this->t('matching.instruction'),
             'left' => $left,
             'right' => $shuffledRight,
         ];
@@ -347,8 +481,8 @@ class HandoutBuilder
 
         return [
             'type' => 'wordsearch',
-            'title' => "So'z izlash",
-            'instruction' => "Jadvaldan quyidagi so'zlarni top va ustidan chiz. So'zlar gorizontal, vertikal yoki diagonal bo'lishi mumkin.",
+            'title' => $this->t('wordsearch.title'),
+            'instruction' => $this->t('wordsearch.instruction'),
             'grid' => $grid,
             'words' => array_map(fn ($p) => $p['word'], $placed),
             'solution' => $placed,
@@ -571,8 +705,8 @@ class HandoutBuilder
 
         return [
             'type' => 'crossword',
-            'title' => 'Krossvord',
-            'instruction' => "Ta'riflar bo'yicha so'zlarni top va katakchalarga yoz.",
+            'title' => $this->t('crossword.title'),
+            'instruction' => $this->t('crossword.instruction'),
             'width' => $width,
             'height' => $height,
             'grid' => $grid,
@@ -632,8 +766,8 @@ class HandoutBuilder
 
         return [
             'type' => 'codecracker',
-            'title' => 'Kod ochish',
-            'instruction' => "Shifr kaliti — ochiq harflardan foydalanib, so'zlarning kodini yeching.",
+            'title' => $this->t('codecracker.title'),
+            'instruction' => $this->t('codecracker.instruction'),
             'key' => $key,
             'items' => $items,
         ];
@@ -658,17 +792,17 @@ class HandoutBuilder
         }
 
         $titles = [
-            'add' => "Qo'shish",
-            'sub' => 'Ayirish',
-            'mul' => "Ko'paytirish",
-            'div' => "Bo'lish",
+            'add' => $this->t('math.add'),
+            'sub' => $this->t('math.sub'),
+            'mul' => $this->t('math.mul'),
+            'div' => $this->t('math.div'),
         ];
         $symbols = ['add' => '+', 'sub' => '−', 'mul' => '×', 'div' => ':'];
 
         return [
             'type' => 'mathworksheet',
             'title' => $titles[$op].' — '.$digits['label'],
-            'instruction' => 'Misollarni yeching.',
+            'instruction' => $this->t('math.instruction'),
             'operation' => $op,
             'symbol' => $symbols[$op],
             'items' => $items,
@@ -699,14 +833,14 @@ class HandoutBuilder
             $a = $grade <= 3 ? 1 : 2;
             $b = $grade <= 5 ? 1 : 2;
 
-            return ['a' => $a, 'b' => $b, 'label' => "{$a}x{$b} xonali sonlar"];
+            return ['a' => $a, 'b' => $b, 'label' => $this->t('math.digits_mul', ['a' => $a, 'b' => $b])];
         }
 
         if ($op === 'div') {
             $divisor = $grade <= 4 ? 1 : 2;
             $quotient = 2;
 
-            return ['divisor' => $divisor, 'quotient' => $quotient, 'label' => "qoldiqsiz bo'lish"];
+            return ['divisor' => $divisor, 'quotient' => $quotient, 'label' => $this->t('math.div_label')];
         }
 
         $n = match (true) {
@@ -715,7 +849,7 @@ class HandoutBuilder
             default => 4,
         };
 
-        return ['n' => $n, 'label' => "{$n} xonali sonlar"];
+        return ['n' => $n, 'label' => $this->t('math.digits', ['n' => $n])];
     }
 
     /** @return array{a: int, b: int, answer: int} */
@@ -791,8 +925,8 @@ class HandoutBuilder
 
         return [
             'type' => 'sequence',
-            'title' => "To'g'ri tartib",
-            'instruction' => "Dars bosqichlari aralashtirilgan. To'g'ri ketma-ketlikni belgilab, har biri yoniga tartib raqamini (1, 2, 3...) yoz.",
+            'title' => $this->t('sequence.title'),
+            'instruction' => $this->t('sequence.instruction'),
             'items' => $items,
         ];
     }
@@ -840,8 +974,8 @@ class HandoutBuilder
 
         return [
             'type' => 'truefalse',
-            'title' => "To'g'ri yoki noto'g'ri?",
-            'instruction' => "Har bir juftlikni o'qi. Atama va ta'rif to'g'ri mos kelsa \"T\", mos kelmasa \"N\" deb belgila.",
+            'title' => $this->t('truefalse.title'),
+            'instruction' => $this->t('truefalse.instruction'),
             'items' => $statements,
         ];
     }
@@ -861,10 +995,10 @@ class HandoutBuilder
 
         return [
             'type' => 'flashcard',
-            'title' => 'Kartochkalar',
+            'title' => $this->t('flashcard.title'),
             'instruction' => $isTranslation
-                ? "Sahifalarni kesib, ikki tomonlama kartochka yasang: bir tomonda so'z, ikkinchi tomonda tarjimasi."
-                : "Sahifalarni kesib, ikki tomonlama kartochka yasang: bir tomonda atama, ikkinchi tomonda ta'rif.",
+                ? $this->t('flashcard.instruction_translation')
+                : $this->t('flashcard.instruction_term'),
             'items' => array_map(fn ($t) => [
                 'term' => $t['upper'],
                 'clue' => $t['translation'] !== '' ? $t['translation'] : $t['clue'],
@@ -901,8 +1035,8 @@ class HandoutBuilder
 
             return [
                 'type' => 'compare',
-                'title' => 'Taqqoslash varag\'i',
-                'instruction' => 'Ikki tomonni solishtiring.',
+                'title' => $this->t('compare.title'),
+                'instruction' => $this->t('compare.instruction'),
                 'left' => ['heading' => (string) ($left['heading'] ?? ''), 'items' => $leftItems],
                 'right' => ['heading' => (string) ($right['heading'] ?? ''), 'items' => $rightItems],
             ];
@@ -945,8 +1079,8 @@ class HandoutBuilder
 
         return [
             'type' => 'grammar',
-            'title' => 'Grammatika jadvali',
-            'instruction' => 'Qoidani va misolni o\'rganib chiq.',
+            'title' => $this->t('grammar.title'),
+            'instruction' => $this->t('grammar.instruction'),
             'rows' => $clean,
         ];
     }
@@ -976,10 +1110,10 @@ class HandoutBuilder
             } elseif ($game['type'] === 'crossword') {
                 $lines = [];
                 foreach ($game['across'] as $a) {
-                    $lines[] = "{$a['number']}. {$a['answer']} (gorizontal)";
+                    $lines[] = "{$a['number']}. {$a['answer']} (".$this->t('crossword.across').')';
                 }
                 foreach ($game['down'] as $d) {
-                    $lines[] = "{$d['number']}. {$d['answer']} (vertikal)";
+                    $lines[] = "{$d['number']}. {$d['answer']} (".$this->t('crossword.down').')';
                 }
                 $key[] = ['title' => $game['title'], 'lines' => $lines];
             } elseif ($game['type'] === 'sequence') {
@@ -999,8 +1133,8 @@ class HandoutBuilder
                 foreach ($game['key'] as $k) {
                     $keyLines[] = "{$k['number']}={$k['letter']}";
                 }
-                $key[] = ['title' => $game['title']." (shifr kaliti)", 'lines' => $keyLines];
-                $key[] = ['title' => $game['title']." (so'zlar)", 'lines' => array_map(fn ($it) => $it['answer'], $game['items'])];
+                $key[] = ['title' => $game['title'].' ('.$this->t('codecracker.key').')', 'lines' => $keyLines];
+                $key[] = ['title' => $game['title'].' ('.$this->t('codecracker.words').')', 'lines' => array_map(fn ($it) => $it['answer'], $game['items'])];
             } elseif ($game['type'] === 'mathworksheet') {
                 $lines = [];
                 foreach ($game['items'] as $i => $it) {
