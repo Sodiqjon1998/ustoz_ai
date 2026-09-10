@@ -15,6 +15,12 @@ class CheckGenerationQuota
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Lokal ishlab chiqishda kvota tekshirilmaydi — sinov darslarini
+        // yaratish oylik limitni yeb qo'ymasligi kerak.
+        if (app()->environment('local')) {
+            return $next($request);
+        }
+
         $subscription = $request->attributes->get('subscription')
             ?? $request->user()->activeSubscription();
 

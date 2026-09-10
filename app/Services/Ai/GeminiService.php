@@ -725,6 +725,9 @@ PROMPT;
         if ($sharedOrEnvKey) {
             $candidates[] = ['key' => $sharedOrEnvKey, 'source' => 'shared'];
         }
+        foreach (config('services.gemini.extra_keys', []) as $i => $extraKey) {
+            $candidates[] = ['key' => $extraKey, 'source' => 'extra_'.($i + 1)];
+        }
 
         if (empty($candidates)) {
             throw new \RuntimeException("Gemini API kaliti sozlanmagan. Admin panel > Sozlamalar bo'limidan kiriting.");

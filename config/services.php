@@ -37,6 +37,13 @@ return [
 
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
+        // Qo'shimcha zaxira kalitlar — asosiysi kvota/yuklama sababli
+        // ishlamasa navbat bilan sinaladi.
+        'extra_keys' => array_values(array_filter([
+            env('GEMINI_API_KEY_2'),
+            env('GEMINI_API_KEY_3'),
+            env('GEMINI_API_KEY_4'),
+        ])),
         'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
         // Asosiy modelning bepul kvotasi kunlik va juda tor (~20 so'rov).
         // U tugaganda zaxira model ishlatiladi — uning kvotasi alohida
