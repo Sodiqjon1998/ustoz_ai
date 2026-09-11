@@ -35,6 +35,16 @@ class HandoutBuilder
     public const MATH_GAME = 'mathworksheet';
 
     /**
+     * Til fanlari — tarqatma o'quvchi uchun va butunlay o'sha chet tilida
+     * bo'lishi kerak, o'qituvchi dars (konspekt) tilini qanday tanlamasin.
+     */
+    private const SUBJECT_LANGUAGES = [
+        'Rus tili' => 'ru',
+        'Ingliz tili' => 'en',
+        "Qirg'iz tili" => 'ky',
+    ];
+
+    /**
      * Tarqatmadagi STATIK matnlar (o'yin nomi, ko'rsatma, javob kaliti
      * yorliqlari) dars tiliga tarjima qilinadi — atama/ta'riflar AI'dan
      * allaqachon o'sha tilda keladi, lekin bu satrlar qattiq kodlangan edi va
@@ -167,6 +177,7 @@ class HandoutBuilder
 
     public function build(string $topic, string $subjectName, string $themeKey, int $grade, int $duration, array $content, array $selectedGames = [], string $language = 'uz'): array
     {
+        $language = self::SUBJECT_LANGUAGES[$subjectName] ?? $language;
         $this->lang = isset(self::STRINGS[$language]) ? $language : 'uz';
 
         $terms = $this->cleanTerms((array) ($content['key_terms'] ?? []));

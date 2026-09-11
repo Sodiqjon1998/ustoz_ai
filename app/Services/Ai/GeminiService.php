@@ -279,7 +279,7 @@ class GeminiService
         $isLanguageSubject = in_array($subjectName, self::TRANSLATABLE_LANGUAGE_SUBJECTS, true);
 
         $keyTermsExtra = $isLanguageSubject
-            ? "\n   - BU CHET TILI DARSI: \"term\" albatta shu chet tilining o'zidagi so'z bo'lsin (masalan Ingliz tili bo'lsa \"apple\"), tanlangan dars tiliga QARAMAY — bu yerda yuqoridagi \"BARCHA kontent {$languageName} tilida\" qoidasidan MUSTASNO. Qo'shimcha \"translation\" maydoniga shu so'zning ANIQ o'zbekcha tarjimasini yoz (masalan \"olma\") — o'quvchilar uchun tarjima kartochkalari shundan yasaladi, tarjima xato bo'lmasin."
+            ? "\n   - BU CHET TILI DARSI: \"term\" VA \"clue\" albatta shu chet tilining o'zida bo'lsin (masalan Ingliz tili bo'lsa \"term\": \"apple\", \"clue\": \"A round red or green fruit.\"), tanlangan dars tiliga QARAMAY — bu yerda yuqoridagi \"BARCHA kontent {$languageName} tilida\" qoidasidan MUSTASNO, chunki tarqatma o'quvchilar uchun va butunlay shu chet tilida chiqadi. Qo'shimcha \"translation\" maydoniga shu so'zning ANIQ o'zbekcha tarjimasini yoz (masalan \"olma\") — o'quvchilar uchun tarjima kartochkalari shundan yasaladi, tarjima xato bo'lmasin."
             : '';
 
         $keyTermsExample = $isLanguageSubject
